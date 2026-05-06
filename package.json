@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "vite build",
     "dev": "concurrently \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node server.mjs",
     "dev:web": "vite --host 0.0.0.0",

@@ -1,7 +1,10 @@
 import 'dotenv/config';
 import express from 'express';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const app = express();
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const port = Number(process.env.PORT || 8787);
 const model = process.env.LLM_MODEL || 'gpt-4o-mini';
 const apiUrl = process.env.LLM_API_URL || 'https://api.openai.com/v1/responses';
@@ -208,6 +211,12 @@ app.post('/api/judge', async (req, res) => {
   } finally {
     res.end();
   }
+});
+
+app.use(express.static(join(__dirname, 'dist')));
+
+app.get('*splat', (req, res) => {
+  res.sendFile(join(__dirname, 'dist', 'index.html'));
 });
 
 app.use((error, req, res, next) => {
