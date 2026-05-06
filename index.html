@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Angel / Devil Startup Judge</title>
+    <script type="module" src="/src/main.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="composer-view" class="composer-view" aria-label="Startup idea prompt">
+        <div class="brand-lockup">
+          <div class="title-stage">
+            <img class="title-character title-character-left" src="/src/assets/angel-girl.png" alt="" />
+            <h1>Pitch Purgatory</h1>
+            <img class="title-character title-character-right" src="/src/assets/devil-girl.png" alt="" />
+          </div>
+          <p>One startup idea. Two wildly biased advisors.</p>
+        </div>
+        <form id="idea-form" class="idea-form">
+          <label class="sr-only" for="idea-input">Startup idea</label>
+          <div class="composer-box">
+            <textarea
+              id="idea-input"
+              name="idea"
+              rows="1"
+              maxlength="800"
+              placeholder="Describe your startup idea..."
+              required
+            ></textarea>
+            <div class="composer-meta">
+              <span id="char-count">0/800</span>
+              <span>Enter to send</span>
+            </div>
+          </div>
+          <button id="submit-button" class="sr-only" type="submit">Judge it</button>
+        </form>
+      </section>
+
+      <section id="verdict-view" class="verdict-grid" aria-live="polite" hidden>
+        <article class="verdict-panel angel-panel">
+          <div class="panel-portrait panel-portrait-angel">
+            <img src="/src/assets/angel-girl.png" alt="Angel" />
+          </div>
+          <div id="angel-output" class="verdict-output idle">
+            <p>Awaiting a brave little pitch.</p>
+          </div>
+        </article>
+
+        <article class="verdict-panel devil-panel">
+          <div class="panel-portrait panel-portrait-devil">
+            <img src="/src/assets/devil-girl.png" alt="Devil" />
+          </div>
+          <div id="devil-output" class="verdict-output idle">
+            <p>Ready to find the trapdoor.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
