@@ -75,7 +75,7 @@ p {
 .title-stage {
   width: min(960px, 100%);
   display: grid;
-  grid-template-columns: minmax(120px, 0.34fr) auto minmax(120px, 0.34fr);
+  grid-template-columns: minmax(120px, 0.34fr) minmax(0, auto) minmax(120px, 0.34fr);
   align-items: center;
   justify-content: center;
   column-gap: clamp(12px, 3vw, 34px);
@@ -105,6 +105,7 @@ h1 {
   line-height: 0.96;
   letter-spacing: 0;
   white-space: nowrap;
+  min-width: 0;
 }
 
 .brand-lockup p {
@@ -283,17 +284,18 @@ textarea::placeholder {
   }
 
   .title-stage {
-    grid-template-columns: 84px minmax(0, auto) 84px;
-    column-gap: 6px;
+    width: min(100%, 720px);
+    grid-template-columns: clamp(70px, 20vw, 96px) minmax(0, 1fr) clamp(70px, 20vw, 96px);
+    column-gap: 10px;
   }
 
   .title-character {
-    width: 88px;
+    width: min(88px, 100%);
     max-height: 128px;
   }
 
   h1 {
-    font-size: clamp(1.75rem, 8vw, 2.7rem);
+    font-size: clamp(1.45rem, 6.8vw, 2.7rem);
   }
 
   .composer-box {
