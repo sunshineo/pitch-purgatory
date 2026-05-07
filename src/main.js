@@ -35,9 +35,14 @@ const publicIdeaNote = document.querySelector('#public-idea-note');
 const publicIdeaText = document.querySelector('#public-idea-text');
 const publicAngelOutput = document.querySelector('#public-angel-output');
 const publicDevilOutput = document.querySelector('#public-devil-output');
+const blessVoteButton = document.querySelector('#bless-vote-button');
+const damnVoteButton = document.querySelector('#damn-vote-button');
+const blessVoteCount = document.querySelector('#bless-vote-count');
+const damnVoteCount = document.querySelector('#damn-vote-count');
 
 let activeController;
 let currentIdea = '';
+let currentPublicIdea;
 let streamComplete = false;
 let publishedIdea;
 const streamText = {
@@ -143,7 +148,15 @@ function publicIdeaUrl(idea) {
   return `${window.location.origin}/ideas/${idea.slug}`;
 }
 
+function renderVoteState(idea) {
+  blessVoteCount.textContent = idea.votes?.bless ?? 0;
+  damnVoteCount.textContent = idea.votes?.damn ?? 0;
+  blessVoteButton.classList.toggle('is-selected', idea.viewerVote === 'bless');
+  damnVoteButton.classList.toggle('is-selected', idea.viewerVote === 'damn');
+}
+
 function renderPublicIdea(idea) {
+  currentPublicIdea = idea;
   document.title = `${idea.title} - Pitch Purgatory`;
   publicIdeaMeta.textContent = `Launched by ${idea.authorDisplayName} on ${new Date(
     idea.publishedAt
@@ -154,6 +167,7 @@ function renderPublicIdea(idea) {
   publicIdeaText.textContent = idea.ideaText;
   publicAngelOutput.innerHTML = renderMarkdown(idea.angelMarkdown);
   publicDevilOutput.innerHTML = renderMarkdown(idea.devilMarkdown);
+  renderVoteState(idea);
   composerView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
@@ -173,7 +187,9 @@ function ideaCard(idea) {
   pitch.textContent = idea.ideaText;
 
   const meta = document.createElement('small');
-  meta.textContent = `${idea.authorDisplayName} - ${new Date(idea.publishedAt).toLocaleDateString()}`;
+  meta.textContent = `${idea.votes?.bless ?? 0} blessed / ${idea.votes?.damn ?? 0} damned - ${
+    idea.authorDisplayName
+  }`;
 
   link.append(title, pitch, meta);
   return link;
@@ -421,6 +437,37 @@ recentFeedList.addEventListener('click', (event) => {
 });
 
 refreshFeedButton.addEventListener('click', loadRecentIdeas);
+
+async function submitVote(voteType) {
+  if (!currentPublicIdea) return;
+
+  blessVoteButton.disabled = true;
+  damnVoteButton.disabled = true;
+
+  try {
+    const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/votes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voteType })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Vote failed with HTTP ${response.status}.`);
+    }
+    renderPublicIdea(payload.idea);
+  } finally {
+    blessVoteButton.disabled = false;
+    damnVoteButton.disabled = false;
+  }
+}
+
+blessVoteButton.addEventListener('click', () => {
+  submitVote('bless');
+});
+
+damnVoteButton.addEventListener('click', () => {
+  submitVote('damn');
+});
 
 homeButton.addEventListener('click', () => {
   history.pushState({}, '', '/');
