@@ -36,8 +36,14 @@
         </form>
         <section id="recent-feed" class="recent-feed" aria-label="Freshly judged ideas">
           <div class="feed-heading">
-            <h2>Freshly judged</h2>
+            <h2 id="feed-title">Freshly judged</h2>
             <button id="refresh-feed-button" type="button">Refresh</button>
+          </div>
+          <div class="feed-tabs" role="tablist" aria-label="Idea feed ranking">
+            <button class="feed-tab is-active" type="button" data-feed-sort="recent">Fresh</button>
+            <button class="feed-tab" type="button" data-feed-sort="blessed">Blessed</button>
+            <button class="feed-tab" type="button" data-feed-sort="damned">Damned</button>
+            <button class="feed-tab" type="button" data-feed-sort="controversial">Controversial</button>
           </div>
           <div id="recent-feed-list" class="feed-list">
             <p class="feed-empty">Loading the latest launches...</p>

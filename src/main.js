@@ -26,6 +26,8 @@ const publishCancel = document.querySelector('#publish-cancel');
 const recentFeed = document.querySelector('#recent-feed');
 const recentFeedList = document.querySelector('#recent-feed-list');
 const refreshFeedButton = document.querySelector('#refresh-feed-button');
+const feedTitle = document.querySelector('#feed-title');
+const feedTabs = [...document.querySelectorAll('.feed-tab')];
 const homeButton = document.querySelector('#home-button');
 const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
 const publicIdeaMeta = document.querySelector('#public-idea-meta');
@@ -43,6 +45,7 @@ const damnVoteCount = document.querySelector('#damn-vote-count');
 let activeController;
 let currentIdea = '';
 let currentPublicIdea;
+let activeFeedSort = 'recent';
 let streamComplete = false;
 let publishedIdea;
 const streamText = {
@@ -199,9 +202,19 @@ async function loadRecentIdeas() {
   if (recentFeed.hidden) return;
 
   recentFeedList.innerHTML = '<p class="feed-empty">Summoning fresh launches...</p>';
+  const feedNames = {
+    recent: 'Freshly judged',
+    blessed: 'Most blessed',
+    damned: 'Most damned',
+    controversial: 'Most controversial'
+  };
+  feedTitle.textContent = feedNames[activeFeedSort] || feedNames.recent;
+  feedTabs.forEach((tab) => {
+    tab.classList.toggle('is-active', tab.dataset.feedSort === activeFeedSort);
+  });
 
   try {
-    const response = await fetch('/api/ideas?limit=12');
+    const response = await fetch(`/api/ideas?limit=12&sort=${encodeURIComponent(activeFeedSort)}`);
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(payload?.error || `Feed failed with HTTP ${response.status}.`);
@@ -437,6 +450,13 @@ recentFeedList.addEventListener('click', (event) => {
 });
 
 refreshFeedButton.addEventListener('click', loadRecentIdeas);
+
+feedTabs.forEach((tab) => {
+  tab.addEventListener('click', () => {
+    activeFeedSort = tab.dataset.feedSort;
+    loadRecentIdeas();
+  });
+});
 
 async function submitVote(voteType) {
   if (!currentPublicIdea) return;

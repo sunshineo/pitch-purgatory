@@ -150,6 +150,32 @@ h1 {
   cursor: pointer;
 }
 
+.feed-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.feed-tab {
+  min-height: 36px;
+  flex: 0 0 auto;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.07);
+  font-size: 0.88rem;
+  font-weight: 840;
+  cursor: pointer;
+}
+
+.feed-tab.is-active {
+  color: #211913;
+  border-color: transparent;
+  background: #ffd75d;
+}
+
 .feed-list {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
