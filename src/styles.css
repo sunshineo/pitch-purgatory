@@ -348,6 +348,11 @@ textarea::placeholder {
   font-weight: 760;
 }
 
+.public-parent-link a {
+  color: #21150f;
+  font-weight: 920;
+}
+
 #public-idea-meta {
   text-transform: uppercase;
   font-size: 0.82rem;
@@ -460,7 +465,8 @@ textarea::placeholder {
   padding-left: 1.25em;
 }
 
-.comments-section {
+.comments-section,
+.forks-section {
   display: grid;
   gap: 14px;
   padding: clamp(20px, 4vw, 34px);

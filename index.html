@@ -54,6 +54,7 @@
       <section id="public-idea-view" class="public-idea-view" hidden>
         <nav class="public-nav" aria-label="Public idea navigation">
           <button id="home-button" type="button">Judge a new idea</button>
+          <button id="fork-idea-button" type="button">Fork this pitch</button>
           <button id="copy-public-link-button" type="button">Copy link</button>
         </nav>
         <article class="public-idea">
@@ -62,6 +63,7 @@
             <h2 id="public-idea-title">Loading idea...</h2>
             <p id="public-idea-author"></p>
             <p id="public-idea-note"></p>
+            <p id="public-parent-link" class="public-parent-link"></p>
           </header>
           <section class="public-pitch">
             <h3>The pitch</h3>
@@ -117,6 +119,15 @@
             </form>
             <div id="comments-list" class="comments-list">
               <p class="comments-empty">No comments yet.</p>
+            </div>
+          </section>
+          <section class="forks-section" aria-label="Idea forks">
+            <div class="comments-heading">
+              <h3>Forks and resurrections</h3>
+              <button id="refresh-forks-button" type="button">Refresh</button>
+            </div>
+            <div id="forks-list" class="feed-list">
+              <p class="feed-empty">No forks yet.</p>
             </div>
           </section>
         </article>

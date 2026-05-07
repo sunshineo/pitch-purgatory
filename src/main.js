@@ -29,11 +29,13 @@ const refreshFeedButton = document.querySelector('#refresh-feed-button');
 const feedTitle = document.querySelector('#feed-title');
 const feedTabs = [...document.querySelectorAll('.feed-tab')];
 const homeButton = document.querySelector('#home-button');
+const forkIdeaButton = document.querySelector('#fork-idea-button');
 const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
 const publicIdeaMeta = document.querySelector('#public-idea-meta');
 const publicIdeaTitle = document.querySelector('#public-idea-title');
 const publicIdeaAuthor = document.querySelector('#public-idea-author');
 const publicIdeaNote = document.querySelector('#public-idea-note');
+const publicParentLink = document.querySelector('#public-parent-link');
 const publicIdeaText = document.querySelector('#public-idea-text');
 const publicAngelOutput = document.querySelector('#public-angel-output');
 const publicDevilOutput = document.querySelector('#public-devil-output');
@@ -48,10 +50,13 @@ const commentStance = document.querySelector('#comment-stance');
 const commentBody = document.querySelector('#comment-body');
 const commentSubmit = document.querySelector('#comment-submit');
 const commentsList = document.querySelector('#comments-list');
+const refreshForksButton = document.querySelector('#refresh-forks-button');
+const forksList = document.querySelector('#forks-list');
 
 let activeController;
 let currentIdea = '';
 let currentPublicIdea;
+let pendingForkParent;
 let activeFeedSort = 'recent';
 let streamComplete = false;
 let publishedIdea;
@@ -201,6 +206,11 @@ function renderPublicIdea(idea) {
   publicIdeaTitle.textContent = idea.title;
   publicIdeaAuthor.textContent = `Founder: ${idea.authorDisplayName}`;
   publicIdeaNote.textContent = idea.launchNote || 'No launch note. Bold. Suspicious.';
+  if (idea.parentIdea) {
+    publicParentLink.innerHTML = `Forked from <a href="/ideas/${idea.parentIdea.slug}">${idea.parentIdea.title}</a>`;
+  } else {
+    publicParentLink.textContent = 'Original sin. No parent pitch.';
+  }
   publicIdeaText.textContent = idea.ideaText;
   publicAngelOutput.innerHTML = renderMarkdown(idea.angelMarkdown);
   publicDevilOutput.innerHTML = renderMarkdown(idea.devilMarkdown);
@@ -288,6 +298,7 @@ async function loadPublicIdea(slug) {
     }
     renderPublicIdea(payload.idea);
     loadComments();
+    loadForks();
   } catch (error) {
     publicIdeaTitle.textContent = 'This idea escaped purgatory.';
     publicIdeaMeta.textContent = error.message || 'Could not load this public idea.';
@@ -307,6 +318,29 @@ async function loadComments() {
     renderComments(payload.comments || []);
   } catch (error) {
     commentsList.innerHTML = `<p class="comments-empty">${error.message || 'Comments refused to load.'}</p>`;
+  }
+}
+
+async function loadForks() {
+  if (!currentPublicIdea) return;
+
+  forksList.innerHTML = '<p class="feed-empty">Looking for suspiciously improved versions...</p>';
+  try {
+    const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/forks`);
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Forks failed with HTTP ${response.status}.`);
+    }
+
+    forksList.textContent = '';
+    if (!payload.forks?.length) {
+      forksList.innerHTML = '<p class="feed-empty">No forks yet. This pitch remains dangerously original.</p>';
+      return;
+    }
+
+    forksList.append(...payload.forks.map(ideaCard));
+  } catch (error) {
+    forksList.innerHTML = `<p class="feed-empty">${error.message || 'Forks refused to load.'}</p>`;
   }
 }
 
@@ -468,7 +502,9 @@ publishForm.addEventListener('submit', async (event) => {
         launchNote: publishNote.value,
         ideaText: currentIdea,
         angelMarkdown: streamText.angel,
-        devilMarkdown: streamText.devil
+        devilMarkdown: streamText.devil,
+        parentIdeaId: pendingForkParent?.id,
+        source: pendingForkParent ? 'fork' : 'original'
       })
     });
 
@@ -482,6 +518,7 @@ publishForm.addEventListener('submit', async (event) => {
     launchButton.textContent = 'Launched';
     verdictStatus.textContent = `Launched as ${publishedIdea.slug}.`;
     history.pushState({}, '', `/ideas/${publishedIdea.slug}`);
+    pendingForkParent = null;
     renderPublicIdea(publishedIdea);
     loadRecentIdeas();
   } catch (error) {
@@ -541,6 +578,7 @@ damnVoteButton.addEventListener('click', () => {
 });
 
 refreshCommentsButton.addEventListener('click', loadComments);
+refreshForksButton.addEventListener('click', loadForks);
 
 commentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
@@ -574,11 +612,39 @@ homeButton.addEventListener('click', () => {
   history.pushState({}, '', '/');
   input.value = '';
   currentIdea = '';
+  pendingForkParent = null;
   autosizeInput();
   updateCharCount();
   resetOutputs();
   showComposer();
   input.focus();
+});
+
+forkIdeaButton.addEventListener('click', () => {
+  if (!currentPublicIdea) return;
+
+  pendingForkParent = {
+    id: currentPublicIdea.id,
+    slug: currentPublicIdea.slug,
+    title: currentPublicIdea.title
+  };
+  currentIdea = currentPublicIdea.ideaText;
+  input.value = currentPublicIdea.ideaText;
+  autosizeInput();
+  updateCharCount();
+  resetOutputs();
+  history.pushState({}, '', '/');
+  showComposer();
+  verdictStatus.textContent = `Forking ${pendingForkParent.title}. Rejudge it, then launch the resurrection.`;
+  input.focus();
+});
+
+publicIdeaView.addEventListener('click', (event) => {
+  const link = event.target.closest('a[href^="/ideas/"]');
+  if (!link) return;
+  event.preventDefault();
+  history.pushState({}, '', link.getAttribute('href'));
+  route();
 });
 
 copyPublicLinkButton.addEventListener('click', async () => {
