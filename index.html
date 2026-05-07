@@ -3,29 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Angel / Devil Startup Judge</title>
+    <title>Angel / Devil Idea Judge</title>
     <script type="module" src="/src/main.js"></script>
   </head>
   <body>
     <main class="app-shell">
-      <section id="composer-view" class="composer-view" aria-label="Startup idea prompt">
+      <section id="composer-view" class="composer-view" aria-label="Idea prompt">
         <div class="brand-lockup">
           <div class="title-stage">
             <img class="title-character title-character-left" src="/src/assets/angel-girl.png" alt="" />
-            <h1>Pitch Purgatory</h1>
+            <h1>Idea Purgatory</h1>
             <img class="title-character title-character-right" src="/src/assets/devil-girl.png" alt="" />
           </div>
-          <p>One startup idea. Two wildly biased advisors.</p>
+          <p>One idea. Two wildly biased advisors.</p>
         </div>
         <form id="idea-form" class="idea-form">
-          <label class="sr-only" for="idea-input">Startup idea</label>
+          <label class="sr-only" for="idea-input">Idea</label>
           <div class="composer-box">
             <textarea
               id="idea-input"
               name="idea"
               rows="1"
               maxlength="800"
-              placeholder="Describe your startup idea..."
+              placeholder="Describe your idea..."
             ></textarea>
             <div class="composer-meta">
               <span id="char-count">0/800</span>
@@ -34,21 +34,41 @@
           </div>
           <button id="submit-button" class="sr-only" type="submit">Judge it</button>
         </form>
-        <section id="recent-feed" class="recent-feed" aria-label="Freshly judged ideas">
-          <div class="feed-heading">
-            <h2 id="feed-title">Freshly judged</h2>
-            <button id="refresh-feed-button" type="button">Refresh</button>
-          </div>
-          <div class="feed-tabs" role="tablist" aria-label="Idea feed ranking">
-            <button class="feed-tab is-active" type="button" data-feed-sort="recent">Fresh</button>
-            <button class="feed-tab" type="button" data-feed-sort="blessed">Blessed</button>
-            <button class="feed-tab" type="button" data-feed-sort="damned">Damned</button>
-            <button class="feed-tab" type="button" data-feed-sort="controversial">Controversial</button>
-          </div>
-          <div id="recent-feed-list" class="feed-list">
-            <p class="feed-empty">Loading the latest launches...</p>
-          </div>
-        </section>
+        <a id="browse-ideas-link" class="browse-ideas-link" href="/ideas">Browse launched ideas</a>
+      </section>
+
+      <section id="ideas-board-view" class="ideas-board-view" hidden>
+        <nav class="public-nav" aria-label="Ideas board navigation">
+          <button id="board-home-button" type="button">Judge a new idea</button>
+          <button id="refresh-board-button" type="button">Refresh</button>
+        </nav>
+        <header class="ideas-board-header">
+          <h2>Idea Purgatory</h2>
+          <p>Three gates. One crowd. Absolutely no refunds on opinions.</p>
+        </header>
+        <div class="ideas-board-columns">
+          <section class="ideas-column ideas-column-blessed" aria-label="Blessed ideas">
+            <img class="ideas-column-character" src="/src/assets/angel-girl.png" alt="" />
+            <h3>Blessed</h3>
+            <div id="blessed-feed-list" class="feed-list feed-list-column">
+              <p class="feed-empty">Loading blessed launches...</p>
+            </div>
+          </section>
+          <section class="ideas-column ideas-column-purgatory" aria-label="Purgatory ideas">
+            <div class="purgatory-sigil">?</div>
+            <h3>Purgatory</h3>
+            <div id="purgatory-feed-list" class="feed-list feed-list-column">
+              <p class="feed-empty">Loading purgatory launches...</p>
+            </div>
+          </section>
+          <section class="ideas-column ideas-column-damned" aria-label="Damned ideas">
+            <img class="ideas-column-character" src="/src/assets/devil-girl.png" alt="" />
+            <h3>Damned</h3>
+            <div id="damned-feed-list" class="feed-list feed-list-column">
+              <p class="feed-empty">Loading damned launches...</p>
+            </div>
+          </section>
+        </div>
       </section>
 
       <section id="public-idea-view" class="public-idea-view" hidden>

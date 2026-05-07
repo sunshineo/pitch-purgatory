@@ -6,6 +6,7 @@ const form = document.querySelector('#idea-form');
 const input = document.querySelector('#idea-input');
 const button = document.querySelector('#submit-button');
 const composerView = document.querySelector('#composer-view');
+const ideasBoardView = document.querySelector('#ideas-board-view');
 const publicIdeaView = document.querySelector('#public-idea-view');
 const verdictView = document.querySelector('#verdict-view');
 const charCount = document.querySelector('#char-count');
@@ -23,11 +24,12 @@ const publishAuthor = document.querySelector('#publish-author');
 const publishNote = document.querySelector('#publish-note');
 const publishSubmit = document.querySelector('#publish-submit');
 const publishCancel = document.querySelector('#publish-cancel');
-const recentFeed = document.querySelector('#recent-feed');
-const recentFeedList = document.querySelector('#recent-feed-list');
-const refreshFeedButton = document.querySelector('#refresh-feed-button');
-const feedTitle = document.querySelector('#feed-title');
-const feedTabs = [...document.querySelectorAll('.feed-tab')];
+const browseIdeasLink = document.querySelector('#browse-ideas-link');
+const boardHomeButton = document.querySelector('#board-home-button');
+const refreshBoardButton = document.querySelector('#refresh-board-button');
+const blessedFeedList = document.querySelector('#blessed-feed-list');
+const purgatoryFeedList = document.querySelector('#purgatory-feed-list');
+const damnedFeedList = document.querySelector('#damned-feed-list');
 const homeButton = document.querySelector('#home-button');
 const forkIdeaButton = document.querySelector('#fork-idea-button');
 const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
@@ -57,7 +59,6 @@ let activeController;
 let currentIdea = '';
 let currentPublicIdea;
 let pendingForkParent;
-let activeFeedSort = 'recent';
 let streamComplete = false;
 let publishedIdea;
 const streamText = {
@@ -85,11 +86,11 @@ function setPostVerdictState(state, message) {
 
 function showComposer() {
   composerView.hidden = false;
+  ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
   publishPanel.hidden = true;
-  loadRecentIdeas();
 }
 
 function autosizeInput() {
@@ -145,6 +146,7 @@ function appendChunk(side, text) {
 function showError(message) {
   verdictView.hidden = false;
   composerView.hidden = true;
+  ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
   publishPanel.hidden = true;
   setPostVerdictState('error', 'The tribunal tripped over its own robes.');
@@ -199,7 +201,7 @@ function renderComments(comments) {
 
 function renderPublicIdea(idea) {
   currentPublicIdea = idea;
-  document.title = `${idea.title} - Pitch Purgatory`;
+  document.title = `${idea.title} - Idea Purgatory`;
   publicIdeaMeta.textContent = `Launched by ${idea.authorDisplayName} on ${new Date(
     idea.publishedAt
   ).toLocaleDateString()}`;
@@ -242,43 +244,57 @@ function ideaCard(idea) {
   return link;
 }
 
-async function loadRecentIdeas() {
-  if (recentFeed.hidden) return;
+function renderBoardColumn(target, ideas, emptyText) {
+  target.textContent = '';
+  if (!ideas.length) {
+    target.innerHTML = `<p class="feed-empty">${emptyText}</p>`;
+    return;
+  }
 
-  recentFeedList.innerHTML = '<p class="feed-empty">Summoning fresh launches...</p>';
-  const feedNames = {
-    recent: 'Freshly judged',
-    blessed: 'Most blessed',
-    damned: 'Most damned',
-    controversial: 'Most controversial'
-  };
-  feedTitle.textContent = feedNames[activeFeedSort] || feedNames.recent;
-  feedTabs.forEach((tab) => {
-    tab.classList.toggle('is-active', tab.dataset.feedSort === activeFeedSort);
-  });
+  target.append(...ideas.map(ideaCard));
+}
+
+async function loadBoardColumn(target, sort, emptyText) {
+  target.innerHTML = '<p class="feed-empty">Summoning launches...</p>';
 
   try {
-    const response = await fetch(`/api/ideas?limit=12&sort=${encodeURIComponent(activeFeedSort)}`);
+    const response = await fetch(`/api/ideas?limit=12&sort=${encodeURIComponent(sort)}`);
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(payload?.error || `Feed failed with HTTP ${response.status}.`);
     }
 
-    recentFeedList.textContent = '';
-    if (!payload.ideas?.length) {
-      recentFeedList.innerHTML = '<p class="feed-empty">No public launches yet. Be the first brave fool.</p>';
-      return;
-    }
-
-    recentFeedList.append(...payload.ideas.map(ideaCard));
+    renderBoardColumn(target, payload.ideas || [], emptyText);
   } catch (error) {
-    recentFeedList.innerHTML = `<p class="feed-empty">${error.message || 'The feed is sulking.'}</p>`;
+    target.innerHTML = `<p class="feed-empty">${error.message || 'The feed is sulking.'}</p>`;
   }
+}
+
+async function loadIdeasBoard() {
+  if (ideasBoardView.hidden) return;
+
+  await Promise.all([
+    loadBoardColumn(blessedFeedList, 'blessed', 'No blessed launches yet. The halo committee is waiting.'),
+    loadBoardColumn(purgatoryFeedList, 'purgatory', 'No ideas stuck in the middle yet. Suspiciously decisive.'),
+    loadBoardColumn(damnedFeedList, 'damned', 'No damned launches yet. The pit is taking applications.')
+  ]);
+}
+
+function showIdeasBoard() {
+  document.title = 'Idea Purgatory';
+  composerView.hidden = true;
+  publicIdeaView.hidden = true;
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
+  ideasBoardView.hidden = false;
+  loadIdeasBoard();
 }
 
 async function loadPublicIdea(slug) {
   publicIdeaView.hidden = false;
   composerView.hidden = true;
+  ideasBoardView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
   publishPanel.hidden = true;
@@ -351,7 +367,12 @@ function route() {
     return;
   }
 
-  document.title = 'Angel / Devil Startup Judge';
+  if (window.location.pathname === '/ideas' || window.location.pathname === '/ideas/') {
+    showIdeasBoard();
+    return;
+  }
+
+  document.title = 'Angel / Devil Idea Judge';
   showComposer();
 }
 
@@ -396,6 +417,7 @@ form.addEventListener('submit', async (event) => {
 
   resetOutputs();
   composerView.hidden = true;
+  ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
   verdictView.hidden = false;
   setPostVerdictState('streaming', 'The advisors are still yelling over each other...');
@@ -520,7 +542,6 @@ publishForm.addEventListener('submit', async (event) => {
     history.pushState({}, '', `/ideas/${publishedIdea.slug}`);
     pendingForkParent = null;
     renderPublicIdea(publishedIdea);
-    loadRecentIdeas();
   } catch (error) {
     launchButton.disabled = false;
     verdictStatus.textContent = error.message || 'Launch failed before liftoff.';
@@ -529,7 +550,13 @@ publishForm.addEventListener('submit', async (event) => {
   }
 });
 
-recentFeedList.addEventListener('click', (event) => {
+browseIdeasLink.addEventListener('click', (event) => {
+  event.preventDefault();
+  history.pushState({}, '', '/ideas');
+  route();
+});
+
+ideasBoardView.addEventListener('click', (event) => {
   const link = event.target.closest('a[href^="/ideas/"]');
   if (!link) return;
   event.preventDefault();
@@ -537,14 +564,7 @@ recentFeedList.addEventListener('click', (event) => {
   route();
 });
 
-refreshFeedButton.addEventListener('click', loadRecentIdeas);
-
-feedTabs.forEach((tab) => {
-  tab.addEventListener('click', () => {
-    activeFeedSort = tab.dataset.feedSort;
-    loadRecentIdeas();
-  });
-});
+refreshBoardButton.addEventListener('click', loadIdeasBoard);
 
 async function submitVote(voteType) {
   if (!currentPublicIdea) return;
@@ -609,6 +629,18 @@ commentForm.addEventListener('submit', async (event) => {
 });
 
 homeButton.addEventListener('click', () => {
+  history.pushState({}, '', '/');
+  input.value = '';
+  currentIdea = '';
+  pendingForkParent = null;
+  autosizeInput();
+  updateCharCount();
+  resetOutputs();
+  showComposer();
+  input.focus();
+});
+
+boardHomeButton.addEventListener('click', () => {
   history.pushState({}, '', '/');
   input.value = '';
   currentIdea = '';

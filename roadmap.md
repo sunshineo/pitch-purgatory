@@ -31,7 +31,7 @@ Resolved tooling and access:
 - The Codex in-app browser can open and inspect the local app at `http://localhost:5174/`.
 - GitHub CLI is authenticated as `sunshineo`, with access to the referenced `sunshineo/chore-points-app` repo.
 - Vercel CLI works through `npx vercel`.
-- The `pitch-purgatory` directory is already linked to Vercel project `pitch-purgatory`.
+- The `idea-purgatory` directory is already linked to Vercel project `idea-purgatory`.
 - The Vercel project currently has `OPENAI_API_KEY` configured for Production.
 - Neon CLI works through `npx neonctl` after selecting the Neon org once.
 - The active Neon org is `Gordon` (`org-frosty-frog-99257736`).
@@ -40,17 +40,17 @@ Resolved tooling and access:
 Current Vercel project details:
 
 ```text
-project name: pitch-purgatory
+project name: idea-purgatory
 project id: prj_DABxEWIkq1WtCmjI3tWpfi9INdu6
 team id: team_EQDjfSZelbSqRuKBF0T12md0
-production URL: https://on-your-shoulders.vercel.app
+production URL: https://idea-purgatory.vercel.app
 ```
 
 Database direction:
 
-- Create a new Neon project named `pitch-purgatory` in the same Neon org, rather than sharing the `chore-points-app` database.
+- Create a new Neon project named `idea-purgatory` in the same Neon org, rather than sharing the `chore-points-app` database.
 - Neon Free currently allows 100 projects, 100 CU-hours per month per project, and 0.5 GB storage per project, so a second small project should stay free if usage remains inside the free limits.
-- Add the new database connection string to the Vercel `pitch-purgatory` project as `DATABASE_URL`.
+- Add the new database connection string to the Vercel `idea-purgatory` project as `DATABASE_URL`.
 - Use local development storage that does not require committing secrets. A local `.env` can point at the Neon dev database, but `.env` files must remain uncommitted.
 - The generated `.neon` context file is local CLI state and should not be committed unless there is an explicit decision to make repo-local Neon context part of the project.
 
