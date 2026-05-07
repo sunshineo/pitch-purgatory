@@ -1,0 +1,116 @@
+# Idea Purgatory
+
+Idea Purgatory is a small Vite app for tossing a startup idea into a playful angel/devil tribunal. The app streams two LLM critiques: an optimistic angel take and a skeptical devil take. Published ideas can be browsed on a public board with Blessed, Purgatory, and Damned columns driven by community thumbs-up/thumbs-down votes.
+
+The tone is intentionally light, funny, and animated. This is not meant to feel like a polished enterprise SaaS dashboard.
+
+## Features
+
+- Single idea composer with streamed angel and devil verdicts.
+- Server-side OpenAI Responses API calls so API keys stay out of the browser.
+- Published idea pages with sanitized markdown verdict output.
+- Community voting and comments.
+- Public `/ideas` board with mutually exclusive vote buckets.
+- Shared API logic for local Express and Vercel serverless deployment.
+
+## Tech Stack
+
+- Vite frontend in `src/` and `index.html`.
+- Express local API in `server.mjs`.
+- Vercel serverless API handlers in `api/`.
+- Shared judge, validation, prompt loading, OpenAI streaming, and SSE helpers in `lib/judge.mjs`.
+- Community idea storage and vote bucketing in `lib/store.mjs`.
+- Markdown rendering via `marked` plus `DOMPurify`.
+- PostgreSQL via `pg`.
+
+## Commands
+
+```sh
+npm run dev
+npm run dev:api
+npm run dev:web
+npm run build
+npm start
+```
+
+- `npm run dev` starts both the local Express API and Vite.
+- `npm run dev:api` starts only the API, defaulting to `http://localhost:8787`.
+- `npm run dev:web` starts only the Vite frontend, defaulting to `http://localhost:5173` unless the port is taken.
+- `npm run build` builds the frontend into `dist/`.
+- `npm start` serves the built app through Express.
+
+Run `npm run build` after frontend, shared API, package, Vite, or Vercel config changes.
+
+## Environment
+
+Required:
+
+```sh
+OPENAI_API_KEY=...
+DATABASE_URL=...
+```
+
+Optional:
+
+```sh
+LLM_MODEL=gpt-4o-mini
+LLM_API_URL=https://api.openai.com/v1/responses
+MAX_OUTPUT_TOKENS=800
+PORT=8787
+```
+
+Do not commit `.env` files or secrets. Keep all LLM calls server-side and be careful with changes that increase model call count, token count, or retry behavior.
+
+## Architecture
+
+The frontend posts ideas to `/api/judge` and reads a `text/event-stream` response. In development, Vite proxies `/api` to the local Express server on port `8787`.
+
+`server.mjs` and `api/judge.js` both use the same shared logic from `lib/judge.mjs`. That shared module validates the idea, loads `prompts/angel.md` and `prompts/devil.md`, calls the OpenAI Responses API, and parses streamed SSE output.
+
+Published ideas and community interactions use `lib/store.mjs` through `lib/ideas-api.mjs`. The local Express routes and Vercel serverless handlers intentionally share that same API layer.
+
+## Vote Buckets and ROPE
+
+The `/ideas` board has three mutually exclusive columns:
+
+- Blessed: the idea is meaningfully ahead on thumbs up.
+- Damned: the idea is meaningfully ahead on thumbs down.
+- Purgatory: the vote split is effectively tied.
+
+Purgatory does not use exact equality. Exact equality works for tiny vote counts, but it breaks down as vote totals grow. A split like `499` blessed and `501` damned is not exactly equal, but it is still basically undecided.
+
+To handle that, the board uses a small Region of Practical Equivalence, or ROPE:
+
+```js
+const purgatoryRopeThreshold = 0.10;
+const voteMargin = totalVotes === 0 ? 0 : (blessCount - damnCount) / totalVotes;
+const voteDistance = Math.abs(voteMargin);
+```
+
+Bucket rules:
+
+- Purgatory: `voteDistance <= 0.10`
+- Blessed: `voteMargin > 0.10`
+- Damned: `voteMargin < -0.10`
+
+That means a 50/50 split stays in Purgatory, as does a close 49.9/50.1 split. An idea has to clear a 10 percentage-point normalized margin before it leaves Purgatory for Blessed or Damned.
+
+The SQL implementation lives in `lib/store.mjs`. Purgatory is sorted by closest normalized vote distance first, then by total votes, then by publish date.
+
+## Prompts
+
+Role prompts are markdown files:
+
+- `prompts/angel.md`
+- `prompts/devil.md`
+
+Keep prompts short and aligned with the split personality:
+
+- Angel: exaggerated optimism, investor hype, hidden strengths, punchy and emoji-forward.
+- Devil: exaggerated skepticism, market failure modes, harsh but funny critique, punchy and emoji-forward.
+
+The app expects each response to stay under 500 words.
+
+## Deployment
+
+`vercel.json` configures Vite output from `dist/` and sets the `api/judge.js` max duration to 60 seconds. If API behavior changes, verify that local Express and Vercel serverless behavior still match.

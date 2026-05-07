@@ -16,8 +16,6 @@ const postVerdictActions = document.querySelector('#post-verdict-actions');
 const verdictStatus = document.querySelector('#verdict-status');
 const launchButton = document.querySelector('#launch-button');
 const browseIdeasLink = document.querySelector('#browse-ideas-link');
-const boardHomeButton = document.querySelector('#board-home-button');
-const refreshBoardButton = document.querySelector('#refresh-board-button');
 const blessedFeedList = document.querySelector('#blessed-feed-list');
 const purgatoryFeedList = document.querySelector('#purgatory-feed-list');
 const damnedFeedList = document.querySelector('#damned-feed-list');
@@ -178,6 +176,42 @@ function commentNode(comment) {
   return item;
 }
 
+function voteButton(type, count) {
+  const button = document.createElement('button');
+  const isBless = type === 'bless';
+  button.className = `feed-vote feed-vote-${type}`;
+  button.type = 'button';
+  button.dataset.voteType = type;
+  button.setAttribute('aria-label', `${isBless ? 'Bless' : 'Damn'} this idea`);
+
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('aria-hidden', 'true');
+  icon.setAttribute('viewBox', '0 0 24 24');
+
+  const paths = isBless
+    ? [
+        'M7 10v12',
+        'M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z'
+      ]
+    : [
+        'M17 14V2',
+        'M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z'
+      ];
+
+  paths.forEach((d) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    icon.append(path);
+  });
+
+  const number = document.createElement('strong');
+  number.dataset.voteCount = type;
+  number.textContent = count;
+
+  button.append(icon, number);
+  return button;
+}
+
 function renderComments(comments) {
   commentsList.textContent = '';
   if (!comments.length) {
@@ -204,18 +238,33 @@ function renderPublicIdea(idea) {
 }
 
 function ideaCard(idea) {
+  const card = document.createElement('article');
+  card.className = 'feed-card';
+  card.dataset.ideaSlug = idea.slug;
+
   const link = document.createElement('a');
-  link.className = 'feed-card';
+  link.className = 'feed-card-link';
   link.href = `/ideas/${idea.slug}`;
 
   const pitch = document.createElement('strong');
   pitch.textContent = idea.ideaText;
+  link.append(pitch);
 
-  const meta = document.createElement('small');
-  meta.textContent = `${idea.votes?.bless ?? 0} blessed / ${idea.votes?.damn ?? 0} damned`;
+  const votes = document.createElement('span');
+  votes.className = 'feed-votes';
+  votes.append(voteButton('bless', idea.votes?.bless ?? 0), voteButton('damn', idea.votes?.damn ?? 0));
 
-  link.append(pitch, meta);
-  return link;
+  card.append(link, votes);
+  return card;
+}
+
+function syncBoardIdeaVotes(idea) {
+  document.querySelectorAll(`.feed-card[data-idea-slug="${CSS.escape(idea.slug)}"]`).forEach((card) => {
+    const blessCount = card.querySelector('[data-vote-count="bless"]');
+    const damnCount = card.querySelector('[data-vote-count="damn"]');
+    if (blessCount) blessCount.textContent = idea.votes?.bless ?? 0;
+    if (damnCount) damnCount.textContent = idea.votes?.damn ?? 0;
+  });
 }
 
 function renderBoardColumn(target, ideas, emptyText) {
@@ -454,6 +503,13 @@ browseIdeasLink.addEventListener('click', (event) => {
 });
 
 ideasBoardView.addEventListener('click', (event) => {
+  const vote = event.target.closest('[data-vote-type]');
+  if (vote) {
+    event.preventDefault();
+    submitBoardVote(vote);
+    return;
+  }
+
   const link = event.target.closest('a[href^="/ideas/"]');
   if (!link) return;
   event.preventDefault();
@@ -461,7 +517,36 @@ ideasBoardView.addEventListener('click', (event) => {
   route();
 });
 
-refreshBoardButton.addEventListener('click', loadIdeasBoard);
+async function submitBoardVote(button) {
+  const card = button.closest('.feed-card');
+  const slug = card?.dataset.ideaSlug;
+  const voteType = button.dataset.voteType;
+  if (!slug || !voteType) return;
+
+  const buttons = card.querySelectorAll('[data-vote-type]');
+  buttons.forEach((item) => {
+    item.disabled = true;
+  });
+
+  try {
+    const response = await fetch(`/api/ideas/${encodeURIComponent(slug)}/votes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voteType })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Vote failed with HTTP ${response.status}.`);
+    }
+    syncBoardIdeaVotes(payload.idea);
+  } catch {
+    loadIdeasBoard();
+  } finally {
+    buttons.forEach((item) => {
+      item.disabled = false;
+    });
+  }
+}
 
 async function submitVote(voteType) {
   if (!currentPublicIdea) return;
@@ -518,17 +603,6 @@ commentForm.addEventListener('submit', async (event) => {
   } finally {
     commentSubmit.disabled = false;
   }
-});
-
-boardHomeButton.addEventListener('click', () => {
-  history.pushState({}, '', '/');
-  input.value = '';
-  currentIdea = '';
-  autosizeInput();
-  updateCharCount();
-  resetOutputs();
-  showComposer();
-  input.focus();
 });
 
 publicIdeaView.addEventListener('click', (event) => {
