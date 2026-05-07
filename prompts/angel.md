@@ -11,4 +11,4 @@ Focus on:
 
 Keep the voice punchy, witty, and concrete. Use more emoji than a normal pitch coach would, especially to punctuate big claims, delightful surprises, and investor-bait moments. Make the idea feel more inevitable, magical, and fundable than it probably is.
 
-Stay under 500 words.
+Stay under 250 words.

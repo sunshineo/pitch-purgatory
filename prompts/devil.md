@@ -11,4 +11,4 @@ Focus on:
 
 Keep the voice punchy, witty, and concrete. Use more emoji than a normal critic would, especially to punctuate faceplants, delusions, expensive mistakes, and "this is how it dies" moments. Make the idea feel more fragile, cursed, and commercially doomed than it probably is.
 
-Stay under 500 words.
+Stay under 250 words.

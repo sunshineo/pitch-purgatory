@@ -24,11 +24,11 @@
               id="idea-input"
               name="idea"
               rows="1"
-              maxlength="800"
+              maxlength="280"
               placeholder="Describe your idea..."
             ></textarea>
             <div class="composer-meta">
-              <span id="char-count">0/800</span>
+              <span id="char-count">0/280</span>
               <span>Enter to send</span>
             </div>
           </div>
@@ -72,31 +72,38 @@
       </section>
 
       <section id="public-idea-view" class="public-idea-view" hidden>
-        <nav class="public-nav" aria-label="Public idea navigation">
-          <button id="home-button" type="button">Judge a new idea</button>
-          <button id="fork-idea-button" type="button">Fork this pitch</button>
-          <button id="copy-public-link-button" type="button">Copy link</button>
-        </nav>
         <article class="public-idea">
-          <header class="public-idea-header">
-            <p id="public-idea-meta">Freshly launched from purgatory</p>
-            <h2 id="public-idea-title">Loading idea...</h2>
-            <p id="public-idea-author"></p>
-            <p id="public-idea-note"></p>
-            <p id="public-parent-link" class="public-parent-link"></p>
-          </header>
-          <section class="public-pitch">
-            <h3>The pitch</h3>
+          <section class="public-post">
+            <div class="public-post-meta">
+              <strong>Anonymous founder</strong>
+              <span id="public-idea-meta">Freshly launched from purgatory</span>
+            </div>
             <p id="public-idea-text"></p>
           </section>
           <section class="public-votes" aria-label="Community votes">
-            <button id="bless-vote-button" type="button">
-              <span>Bless it</span>
-              <strong id="bless-vote-count">0</strong>
+            <button id="bless-vote-button" class="vote-button vote-button-bless" type="button" aria-label="Bless this idea">
+              <span class="vote-art vote-art-angel">
+                <img src="/src/assets/angel-girl.png" alt="" />
+              </span>
+              <span class="vote-pill">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M7 10v12" />
+                  <path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z" />
+                </svg>
+                <strong id="bless-vote-count">0</strong>
+              </span>
             </button>
-            <button id="damn-vote-button" type="button">
-              <span>Damn it</span>
-              <strong id="damn-vote-count">0</strong>
+            <button id="damn-vote-button" class="vote-button vote-button-damn" type="button" aria-label="Damn this idea">
+              <span class="vote-pill">
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M17 14V2" />
+                  <path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z" />
+                </svg>
+                <strong id="damn-vote-count">0</strong>
+              </span>
+              <span class="vote-art vote-art-devil">
+                <img src="/src/assets/devil-girl.png" alt="" />
+              </span>
             </button>
           </section>
           <div class="public-verdicts">
@@ -111,29 +118,15 @@
           </div>
           <section class="comments-section" aria-label="Community comments">
             <div class="comments-heading">
-              <h3>Community courtroom</h3>
-              <button id="refresh-comments-button" type="button">Refresh</button>
+              <h3>Comments</h3>
             </div>
             <form id="comment-form" class="comment-form">
-              <input
-                id="comment-author"
-                name="authorDisplayName"
-                maxlength="64"
-                placeholder="Anonymous heckler"
-                autocomplete="nickname"
-              />
-              <select id="comment-stance" name="stance" aria-label="Comment stance">
-                <option value="regular">Roast / riff</option>
-                <option value="angel">Angel energy</option>
-                <option value="devil">Devil energy</option>
-                <option value="founder">Founder note</option>
-              </select>
               <textarea
                 id="comment-body"
                 name="body"
                 rows="3"
                 maxlength="1200"
-                placeholder="Add a blessing, objection, pivot, or suspiciously specific go-to-market plan..."
+                placeholder="Write a comment..."
               ></textarea>
               <button id="comment-submit" type="submit">Post comment</button>
             </form>
@@ -141,16 +134,14 @@
               <p class="comments-empty">No comments yet.</p>
             </div>
           </section>
-          <section class="forks-section" aria-label="Idea forks">
-            <div class="comments-heading">
-              <h3>Forks and resurrections</h3>
-              <button id="refresh-forks-button" type="button">Refresh</button>
-            </div>
-            <div id="forks-list" class="feed-list">
-              <p class="feed-empty">No forks yet.</p>
-            </div>
-          </section>
         </article>
+      </section>
+
+      <section id="post-verdict-actions" class="post-verdict-actions" aria-label="Post verdict actions" hidden>
+        <p id="verdict-status">The advisors are still yelling over each other...</p>
+        <div class="verdict-actions">
+          <button id="launch-button" type="button" disabled>Launch this idea</button>
+        </div>
       </section>
 
       <section id="verdict-view" class="verdict-grid" aria-live="polite" hidden>
@@ -171,48 +162,6 @@
             <p>Ready to find the trapdoor.</p>
           </div>
         </article>
-      </section>
-
-      <section id="post-verdict-actions" class="post-verdict-actions" aria-label="Post verdict actions" hidden>
-        <p id="verdict-status">The advisors are still yelling over each other...</p>
-        <div class="verdict-actions">
-          <button id="launch-button" type="button" disabled>Launch this idea</button>
-          <button id="revise-button" type="button">Revise pitch</button>
-          <button id="new-idea-button" type="button">Judge another</button>
-        </div>
-      </section>
-
-      <section id="publish-panel" class="publish-panel" aria-label="Launch idea" hidden>
-        <form id="publish-form" class="publish-form">
-          <label>
-            <span>Title</span>
-            <input id="publish-title" name="title" maxlength="96" autocomplete="off" />
-          </label>
-          <label>
-            <span>Founder name</span>
-            <input
-              id="publish-author"
-              name="authorDisplayName"
-              maxlength="64"
-              autocomplete="nickname"
-              placeholder="Anonymous founder"
-            />
-          </label>
-          <label class="publish-note-field">
-            <span>Launch note</span>
-            <textarea
-              id="publish-note"
-              name="launchNote"
-              rows="2"
-              maxlength="220"
-              placeholder="Optional last words before the crowd starts voting..."
-            ></textarea>
-          </label>
-          <div class="publish-form-actions">
-            <button id="publish-submit" type="submit">Publish to purgatory</button>
-            <button id="publish-cancel" type="button">Cancel</button>
-          </div>
-        </form>
       </section>
     </main>
   </body>

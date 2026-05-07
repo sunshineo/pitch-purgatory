@@ -7,7 +7,6 @@ import {
   handleCreateIdea,
   handleGetIdea,
   handleListComments,
-  handleListForks,
   handleListIdeas,
   handleVoteIdea
 } from './lib/ideas-api.mjs';
@@ -42,9 +41,6 @@ app.get('/api/ideas/:idOrSlug/comments', (req, res) => {
 });
 app.post('/api/ideas/:idOrSlug/comments', (req, res) => {
   handleCreateComment(req, res, req.params.idOrSlug);
-});
-app.get('/api/ideas/:idOrSlug/forks', (req, res) => {
-  handleListForks(req, res, req.params.idOrSlug);
 });
 app.get('/api/ideas/:idOrSlug', (req, res) => {
   handleGetIdea(req, res, req.params.idOrSlug);

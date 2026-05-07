@@ -15,29 +15,13 @@ const devilOutput = document.querySelector('#devil-output');
 const postVerdictActions = document.querySelector('#post-verdict-actions');
 const verdictStatus = document.querySelector('#verdict-status');
 const launchButton = document.querySelector('#launch-button');
-const reviseButton = document.querySelector('#revise-button');
-const newIdeaButton = document.querySelector('#new-idea-button');
-const publishPanel = document.querySelector('#publish-panel');
-const publishForm = document.querySelector('#publish-form');
-const publishTitle = document.querySelector('#publish-title');
-const publishAuthor = document.querySelector('#publish-author');
-const publishNote = document.querySelector('#publish-note');
-const publishSubmit = document.querySelector('#publish-submit');
-const publishCancel = document.querySelector('#publish-cancel');
 const browseIdeasLink = document.querySelector('#browse-ideas-link');
 const boardHomeButton = document.querySelector('#board-home-button');
 const refreshBoardButton = document.querySelector('#refresh-board-button');
 const blessedFeedList = document.querySelector('#blessed-feed-list');
 const purgatoryFeedList = document.querySelector('#purgatory-feed-list');
 const damnedFeedList = document.querySelector('#damned-feed-list');
-const homeButton = document.querySelector('#home-button');
-const forkIdeaButton = document.querySelector('#fork-idea-button');
-const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
 const publicIdeaMeta = document.querySelector('#public-idea-meta');
-const publicIdeaTitle = document.querySelector('#public-idea-title');
-const publicIdeaAuthor = document.querySelector('#public-idea-author');
-const publicIdeaNote = document.querySelector('#public-idea-note');
-const publicParentLink = document.querySelector('#public-parent-link');
 const publicIdeaText = document.querySelector('#public-idea-text');
 const publicAngelOutput = document.querySelector('#public-angel-output');
 const publicDevilOutput = document.querySelector('#public-devil-output');
@@ -45,20 +29,14 @@ const blessVoteButton = document.querySelector('#bless-vote-button');
 const damnVoteButton = document.querySelector('#damn-vote-button');
 const blessVoteCount = document.querySelector('#bless-vote-count');
 const damnVoteCount = document.querySelector('#damn-vote-count');
-const refreshCommentsButton = document.querySelector('#refresh-comments-button');
 const commentForm = document.querySelector('#comment-form');
-const commentAuthor = document.querySelector('#comment-author');
-const commentStance = document.querySelector('#comment-stance');
 const commentBody = document.querySelector('#comment-body');
 const commentSubmit = document.querySelector('#comment-submit');
 const commentsList = document.querySelector('#comments-list');
-const refreshForksButton = document.querySelector('#refresh-forks-button');
-const forksList = document.querySelector('#forks-list');
 
 let activeController;
 let currentIdea = '';
 let currentPublicIdea;
-let pendingForkParent;
 let streamComplete = false;
 let publishedIdea;
 const streamText = {
@@ -77,20 +55,39 @@ function setLoading(isLoading) {
   input.disabled = isLoading;
 }
 
+function syncVerdictLayout() {
+  if (postVerdictActions.hidden || verdictView.hidden) return;
+
+  document.documentElement.style.setProperty(
+    '--post-verdict-height',
+    `${Math.ceil(postVerdictActions.offsetHeight)}px`
+  );
+}
+
+function setVerdictMode(isActive) {
+  document.body.classList.toggle('verdict-mode', isActive);
+  if (isActive) {
+    requestAnimationFrame(syncVerdictLayout);
+  } else {
+    document.documentElement.style.removeProperty('--post-verdict-height');
+  }
+}
+
 function setPostVerdictState(state, message) {
   postVerdictActions.hidden = false;
   postVerdictActions.dataset.state = state;
   verdictStatus.textContent = message;
   launchButton.disabled = state !== 'complete';
+  requestAnimationFrame(syncVerdictLayout);
 }
 
 function showComposer() {
+  setVerdictMode(false);
   composerView.hidden = false;
   ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
 }
 
 function autosizeInput() {
@@ -108,9 +105,8 @@ function resetOutputs() {
   streamText.angel = '';
   streamText.devil = '';
   postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
   postVerdictActions.dataset.state = 'idle';
-  verdictStatus.textContent = 'The advisors are still yelling over each other...';
+  verdictStatus.textContent = currentIdea;
   launchButton.disabled = true;
   launchButton.textContent = 'Launch this idea';
   angelOutput.textContent = placeholders.angel;
@@ -148,17 +144,12 @@ function showError(message) {
   composerView.hidden = true;
   ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
-  publishPanel.hidden = true;
-  setPostVerdictState('error', 'The tribunal tripped over its own robes.');
+  setPostVerdictState('error', currentIdea || 'The tribunal tripped over its own robes.');
+  setVerdictMode(true);
   angelOutput.classList.add('error');
   devilOutput.classList.add('error');
   angelOutput.textContent = message;
   devilOutput.textContent = 'The debate crashed before the roast could finish.';
-}
-
-function suggestedTitle(idea) {
-  const words = idea.replace(/\s+/g, ' ').trim().split(' ');
-  return words.slice(0, 8).join(' ').replace(/[.,;:!?]+$/g, '');
 }
 
 function publicIdeaUrl(idea) {
@@ -178,9 +169,7 @@ function commentNode(comment) {
 
   const meta = document.createElement('p');
   meta.className = 'comment-meta';
-  meta.textContent = `${comment.authorDisplayName} - ${comment.stance} - ${new Date(
-    comment.createdAt
-  ).toLocaleString()}`;
+  meta.textContent = `${comment.authorDisplayName} - ${new Date(comment.createdAt).toLocaleString()}`;
 
   const body = document.createElement('p');
   body.textContent = comment.body;
@@ -192,7 +181,7 @@ function commentNode(comment) {
 function renderComments(comments) {
   commentsList.textContent = '';
   if (!comments.length) {
-    commentsList.innerHTML = '<p class="comments-empty">No comments yet. The courtroom is eerily polite.</p>';
+    commentsList.innerHTML = '<p class="comments-empty">No comments yet.</p>';
     return;
   }
 
@@ -200,19 +189,10 @@ function renderComments(comments) {
 }
 
 function renderPublicIdea(idea) {
+  setVerdictMode(false);
   currentPublicIdea = idea;
-  document.title = `${idea.title} - Idea Purgatory`;
-  publicIdeaMeta.textContent = `Launched by ${idea.authorDisplayName} on ${new Date(
-    idea.publishedAt
-  ).toLocaleDateString()}`;
-  publicIdeaTitle.textContent = idea.title;
-  publicIdeaAuthor.textContent = `Founder: ${idea.authorDisplayName}`;
-  publicIdeaNote.textContent = idea.launchNote || 'No launch note. Bold. Suspicious.';
-  if (idea.parentIdea) {
-    publicParentLink.innerHTML = `Forked from <a href="/ideas/${idea.parentIdea.slug}">${idea.parentIdea.title}</a>`;
-  } else {
-    publicParentLink.textContent = 'Original sin. No parent pitch.';
-  }
+  document.title = 'Idea Purgatory';
+  publicIdeaMeta.textContent = new Date(idea.publishedAt).toLocaleDateString();
   publicIdeaText.textContent = idea.ideaText;
   publicAngelOutput.innerHTML = renderMarkdown(idea.angelMarkdown);
   publicDevilOutput.innerHTML = renderMarkdown(idea.devilMarkdown);
@@ -220,7 +200,6 @@ function renderPublicIdea(idea) {
   composerView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
   publicIdeaView.hidden = false;
 }
 
@@ -229,18 +208,13 @@ function ideaCard(idea) {
   link.className = 'feed-card';
   link.href = `/ideas/${idea.slug}`;
 
-  const title = document.createElement('strong');
-  title.textContent = idea.title;
-
-  const pitch = document.createElement('span');
+  const pitch = document.createElement('strong');
   pitch.textContent = idea.ideaText;
 
   const meta = document.createElement('small');
-  meta.textContent = `${idea.votes?.bless ?? 0} blessed / ${idea.votes?.damn ?? 0} damned - ${
-    idea.authorDisplayName
-  }`;
+  meta.textContent = `${idea.votes?.bless ?? 0} blessed / ${idea.votes?.damn ?? 0} damned`;
 
-  link.append(title, pitch, meta);
+  link.append(pitch, meta);
   return link;
 }
 
@@ -281,27 +255,24 @@ async function loadIdeasBoard() {
 }
 
 function showIdeasBoard() {
+  setVerdictMode(false);
   document.title = 'Idea Purgatory';
   composerView.hidden = true;
   publicIdeaView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
   ideasBoardView.hidden = false;
   loadIdeasBoard();
 }
 
 async function loadPublicIdea(slug) {
+  setVerdictMode(false);
   publicIdeaView.hidden = false;
   composerView.hidden = true;
   ideasBoardView.hidden = true;
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
-  publicIdeaTitle.textContent = 'Loading idea...';
-  publicIdeaMeta.textContent = 'Fetching the pitch from purgatory';
-  publicIdeaAuthor.textContent = '';
-  publicIdeaNote.textContent = '';
+  publicIdeaMeta.textContent = 'Loading...';
   publicIdeaText.textContent = '';
   publicAngelOutput.textContent = '';
   publicDevilOutput.textContent = '';
@@ -314,17 +285,16 @@ async function loadPublicIdea(slug) {
     }
     renderPublicIdea(payload.idea);
     loadComments();
-    loadForks();
   } catch (error) {
-    publicIdeaTitle.textContent = 'This idea escaped purgatory.';
-    publicIdeaMeta.textContent = error.message || 'Could not load this public idea.';
+    publicIdeaText.textContent = error.message || 'Could not load this public idea.';
+    publicIdeaMeta.textContent = 'This idea escaped purgatory.';
   }
 }
 
 async function loadComments() {
   if (!currentPublicIdea) return;
 
-  commentsList.innerHTML = '<p class="comments-empty">Loading courtroom transcripts...</p>';
+  commentsList.innerHTML = '<p class="comments-empty">Loading comments...</p>';
   try {
     const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/comments`);
     const payload = await response.json().catch(() => null);
@@ -334,29 +304,6 @@ async function loadComments() {
     renderComments(payload.comments || []);
   } catch (error) {
     commentsList.innerHTML = `<p class="comments-empty">${error.message || 'Comments refused to load.'}</p>`;
-  }
-}
-
-async function loadForks() {
-  if (!currentPublicIdea) return;
-
-  forksList.innerHTML = '<p class="feed-empty">Looking for suspiciously improved versions...</p>';
-  try {
-    const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/forks`);
-    const payload = await response.json().catch(() => null);
-    if (!response.ok) {
-      throw new Error(payload?.error || `Forks failed with HTTP ${response.status}.`);
-    }
-
-    forksList.textContent = '';
-    if (!payload.forks?.length) {
-      forksList.innerHTML = '<p class="feed-empty">No forks yet. This pitch remains dangerously original.</p>';
-      return;
-    }
-
-    forksList.append(...payload.forks.map(ideaCard));
-  } catch (error) {
-    forksList.innerHTML = `<p class="feed-empty">${error.message || 'Forks refused to load.'}</p>`;
   }
 }
 
@@ -399,7 +346,7 @@ async function readSse(response) {
       if (payload.type === 'error') throw new Error(payload.message);
       if (payload.type === 'done') {
         streamComplete = true;
-        setPostVerdictState('complete', 'Verdict complete. This pitch can now be launched from purgatory.');
+        setPostVerdictState('complete', currentIdea);
       }
     }
   }
@@ -420,7 +367,8 @@ form.addEventListener('submit', async (event) => {
   ideasBoardView.hidden = true;
   publicIdeaView.hidden = true;
   verdictView.hidden = false;
-  setPostVerdictState('streaming', 'The advisors are still yelling over each other...');
+  setPostVerdictState('streaming', currentIdea);
+  setVerdictMode(true);
   setLoading(true);
 
   try {
@@ -447,7 +395,7 @@ form.addEventListener('submit', async (event) => {
     }
   } finally {
     if (!streamComplete && streamText.angel && streamText.devil) {
-      setPostVerdictState('complete', 'Verdict complete. This pitch can now be launched from purgatory.');
+      setPostVerdictState('complete', currentIdea);
     }
     setLoading(false);
     activeController = null;
@@ -465,68 +413,21 @@ input.addEventListener('keydown', (event) => {
   form.requestSubmit();
 });
 
-launchButton.addEventListener('click', () => {
-  if (!streamComplete) return;
-  publishTitle.value = suggestedTitle(currentIdea);
-  publishAuthor.value = '';
-  publishNote.value = '';
-  publishPanel.hidden = false;
-  publishTitle.focus();
-});
-
-reviseButton.addEventListener('click', () => {
-  activeController?.abort();
-  input.value = currentIdea;
-  autosizeInput();
-  updateCharCount();
-  verdictView.hidden = true;
-  postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
-  composerView.hidden = false;
-  input.disabled = false;
-  input.focus();
-});
-
-newIdeaButton.addEventListener('click', () => {
-  activeController?.abort();
-  input.value = '';
-  currentIdea = '';
-  autosizeInput();
-  updateCharCount();
-  resetOutputs();
-  verdictView.hidden = true;
-  postVerdictActions.hidden = true;
-  publishPanel.hidden = true;
-  composerView.hidden = false;
-  input.disabled = false;
-  input.focus();
-});
-
-publishCancel.addEventListener('click', () => {
-  publishPanel.hidden = true;
-});
-
-publishForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
+launchButton.addEventListener('click', async () => {
   if (!streamComplete || publishedIdea) return;
 
-  publishSubmit.disabled = true;
   launchButton.disabled = true;
-  verdictStatus.textContent = 'Launching this pitch into the public void...';
+  launchButton.textContent = 'Launching...';
 
   try {
     const response = await fetch('/api/ideas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: publishTitle.value,
-        authorDisplayName: publishAuthor.value,
-        launchNote: publishNote.value,
         ideaText: currentIdea,
         angelMarkdown: streamText.angel,
         devilMarkdown: streamText.devil,
-        parentIdeaId: pendingForkParent?.id,
-        source: pendingForkParent ? 'fork' : 'original'
+        source: 'original'
       })
     });
 
@@ -536,17 +437,13 @@ publishForm.addEventListener('submit', async (event) => {
     }
 
     publishedIdea = payload.idea;
-    publishPanel.hidden = true;
     launchButton.textContent = 'Launched';
-    verdictStatus.textContent = `Launched as ${publishedIdea.slug}.`;
     history.pushState({}, '', `/ideas/${publishedIdea.slug}`);
-    pendingForkParent = null;
     renderPublicIdea(publishedIdea);
   } catch (error) {
     launchButton.disabled = false;
+    launchButton.textContent = 'Launch this idea';
     verdictStatus.textContent = error.message || 'Launch failed before liftoff.';
-  } finally {
-    publishSubmit.disabled = false;
   }
 });
 
@@ -597,9 +494,6 @@ damnVoteButton.addEventListener('click', () => {
   submitVote('damn');
 });
 
-refreshCommentsButton.addEventListener('click', loadComments);
-refreshForksButton.addEventListener('click', loadForks);
-
 commentForm.addEventListener('submit', async (event) => {
   event.preventDefault();
   if (!currentPublicIdea) return;
@@ -610,8 +504,6 @@ commentForm.addEventListener('submit', async (event) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        authorDisplayName: commentAuthor.value,
-        stance: commentStance.value,
         body: commentBody.value
       })
     });
@@ -628,46 +520,14 @@ commentForm.addEventListener('submit', async (event) => {
   }
 });
 
-homeButton.addEventListener('click', () => {
-  history.pushState({}, '', '/');
-  input.value = '';
-  currentIdea = '';
-  pendingForkParent = null;
-  autosizeInput();
-  updateCharCount();
-  resetOutputs();
-  showComposer();
-  input.focus();
-});
-
 boardHomeButton.addEventListener('click', () => {
   history.pushState({}, '', '/');
   input.value = '';
   currentIdea = '';
-  pendingForkParent = null;
   autosizeInput();
   updateCharCount();
   resetOutputs();
   showComposer();
-  input.focus();
-});
-
-forkIdeaButton.addEventListener('click', () => {
-  if (!currentPublicIdea) return;
-
-  pendingForkParent = {
-    id: currentPublicIdea.id,
-    slug: currentPublicIdea.slug,
-    title: currentPublicIdea.title
-  };
-  currentIdea = currentPublicIdea.ideaText;
-  input.value = currentPublicIdea.ideaText;
-  autosizeInput();
-  updateCharCount();
-  resetOutputs();
-  history.pushState({}, '', '/');
-  showComposer();
-  verdictStatus.textContent = `Forking ${pendingForkParent.title}. Rejudge it, then launch the resurrection.`;
   input.focus();
 });
 
@@ -679,15 +539,8 @@ publicIdeaView.addEventListener('click', (event) => {
   route();
 });
 
-copyPublicLinkButton.addEventListener('click', async () => {
-  await navigator.clipboard.writeText(window.location.href);
-  copyPublicLinkButton.textContent = 'Copied';
-  window.setTimeout(() => {
-    copyPublicLinkButton.textContent = 'Copy link';
-  }, 1500);
-});
-
 window.addEventListener('popstate', route);
+window.addEventListener('resize', syncVerdictLayout);
 
 autosizeInput();
 updateCharCount();
