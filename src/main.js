@@ -10,8 +10,15 @@ const verdictView = document.querySelector('#verdict-view');
 const charCount = document.querySelector('#char-count');
 const angelOutput = document.querySelector('#angel-output');
 const devilOutput = document.querySelector('#devil-output');
+const postVerdictActions = document.querySelector('#post-verdict-actions');
+const verdictStatus = document.querySelector('#verdict-status');
+const launchButton = document.querySelector('#launch-button');
+const reviseButton = document.querySelector('#revise-button');
+const newIdeaButton = document.querySelector('#new-idea-button');
 
 let activeController;
+let currentIdea = '';
+let streamComplete = false;
 const streamText = {
   angel: '',
   devil: ''
@@ -28,6 +35,13 @@ function setLoading(isLoading) {
   input.disabled = isLoading;
 }
 
+function setPostVerdictState(state, message) {
+  postVerdictActions.hidden = false;
+  postVerdictActions.dataset.state = state;
+  verdictStatus.textContent = message;
+  launchButton.disabled = state !== 'complete';
+}
+
 function autosizeInput() {
   input.style.height = 'auto';
   input.style.height = `${input.scrollHeight}px`;
@@ -38,8 +52,14 @@ function updateCharCount() {
 }
 
 function resetOutputs() {
+  streamComplete = false;
   streamText.angel = '';
   streamText.devil = '';
+  postVerdictActions.hidden = true;
+  postVerdictActions.dataset.state = 'idle';
+  verdictStatus.textContent = 'The advisors are still yelling over each other...';
+  launchButton.disabled = true;
+  launchButton.textContent = 'Launch this idea';
   angelOutput.textContent = placeholders.angel;
   devilOutput.textContent = placeholders.devil;
   angelOutput.classList.remove('idle', 'error');
@@ -73,6 +93,7 @@ function appendChunk(side, text) {
 function showError(message) {
   verdictView.hidden = false;
   composerView.hidden = true;
+  setPostVerdictState('error', 'The tribunal tripped over its own robes.');
   angelOutput.classList.add('error');
   devilOutput.classList.add('error');
   angelOutput.textContent = message;
@@ -100,6 +121,10 @@ async function readSse(response) {
       const payload = JSON.parse(dataLine.slice(6));
       if (payload.type === 'chunk') appendChunk(payload.side, payload.text);
       if (payload.type === 'error') throw new Error(payload.message);
+      if (payload.type === 'done') {
+        streamComplete = true;
+        setPostVerdictState('complete', 'Verdict complete. This pitch can now be launched from purgatory.');
+      }
     }
   }
 }
@@ -112,10 +137,12 @@ form.addEventListener('submit', async (event) => {
 
   activeController?.abort();
   activeController = new AbortController();
+  currentIdea = idea;
 
   resetOutputs();
   composerView.hidden = true;
   verdictView.hidden = false;
+  setPostVerdictState('streaming', 'The advisors are still yelling over each other...');
   setLoading(true);
 
   try {
@@ -141,6 +168,9 @@ form.addEventListener('submit', async (event) => {
       showError(error.message || 'Something went sideways.');
     }
   } finally {
+    if (!streamComplete && streamText.angel && streamText.devil) {
+      setPostVerdictState('complete', 'Verdict complete. This pitch can now be launched from purgatory.');
+    }
     setLoading(false);
     activeController = null;
   }
@@ -155,6 +185,37 @@ input.addEventListener('keydown', (event) => {
   if (event.key !== 'Enter' || event.shiftKey || event.isComposing) return;
   event.preventDefault();
   form.requestSubmit();
+});
+
+launchButton.addEventListener('click', () => {
+  if (!streamComplete) return;
+  verdictStatus.textContent = 'Launchpad is wired in the next build step. The pitch is ready.';
+});
+
+reviseButton.addEventListener('click', () => {
+  activeController?.abort();
+  input.value = currentIdea;
+  autosizeInput();
+  updateCharCount();
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  composerView.hidden = false;
+  input.disabled = false;
+  input.focus();
+});
+
+newIdeaButton.addEventListener('click', () => {
+  activeController?.abort();
+  input.value = '';
+  currentIdea = '';
+  autosizeInput();
+  updateCharCount();
+  resetOutputs();
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  composerView.hidden = false;
+  input.disabled = false;
+  input.focus();
 });
 
 autosizeInput();
