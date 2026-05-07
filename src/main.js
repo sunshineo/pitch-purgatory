@@ -15,10 +15,18 @@ const verdictStatus = document.querySelector('#verdict-status');
 const launchButton = document.querySelector('#launch-button');
 const reviseButton = document.querySelector('#revise-button');
 const newIdeaButton = document.querySelector('#new-idea-button');
+const publishPanel = document.querySelector('#publish-panel');
+const publishForm = document.querySelector('#publish-form');
+const publishTitle = document.querySelector('#publish-title');
+const publishAuthor = document.querySelector('#publish-author');
+const publishNote = document.querySelector('#publish-note');
+const publishSubmit = document.querySelector('#publish-submit');
+const publishCancel = document.querySelector('#publish-cancel');
 
 let activeController;
 let currentIdea = '';
 let streamComplete = false;
+let publishedIdea;
 const streamText = {
   angel: '',
   devil: ''
@@ -53,9 +61,11 @@ function updateCharCount() {
 
 function resetOutputs() {
   streamComplete = false;
+  publishedIdea = null;
   streamText.angel = '';
   streamText.devil = '';
   postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
   postVerdictActions.dataset.state = 'idle';
   verdictStatus.textContent = 'The advisors are still yelling over each other...';
   launchButton.disabled = true;
@@ -93,11 +103,17 @@ function appendChunk(side, text) {
 function showError(message) {
   verdictView.hidden = false;
   composerView.hidden = true;
+  publishPanel.hidden = true;
   setPostVerdictState('error', 'The tribunal tripped over its own robes.');
   angelOutput.classList.add('error');
   devilOutput.classList.add('error');
   angelOutput.textContent = message;
   devilOutput.textContent = 'The debate crashed before the roast could finish.';
+}
+
+function suggestedTitle(idea) {
+  const words = idea.replace(/\s+/g, ' ').trim().split(' ');
+  return words.slice(0, 8).join(' ').replace(/[.,;:!?]+$/g, '');
 }
 
 async function readSse(response) {
@@ -189,7 +205,11 @@ input.addEventListener('keydown', (event) => {
 
 launchButton.addEventListener('click', () => {
   if (!streamComplete) return;
-  verdictStatus.textContent = 'Launchpad is wired in the next build step. The pitch is ready.';
+  publishTitle.value = suggestedTitle(currentIdea);
+  publishAuthor.value = '';
+  publishNote.value = '';
+  publishPanel.hidden = false;
+  publishTitle.focus();
 });
 
 reviseButton.addEventListener('click', () => {
@@ -199,6 +219,7 @@ reviseButton.addEventListener('click', () => {
   updateCharCount();
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
   composerView.hidden = false;
   input.disabled = false;
   input.focus();
@@ -213,9 +234,53 @@ newIdeaButton.addEventListener('click', () => {
   resetOutputs();
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
   composerView.hidden = false;
   input.disabled = false;
   input.focus();
+});
+
+publishCancel.addEventListener('click', () => {
+  publishPanel.hidden = true;
+});
+
+publishForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!streamComplete || publishedIdea) return;
+
+  publishSubmit.disabled = true;
+  launchButton.disabled = true;
+  verdictStatus.textContent = 'Launching this pitch into the public void...';
+
+  try {
+    const response = await fetch('/api/ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: publishTitle.value,
+        authorDisplayName: publishAuthor.value,
+        launchNote: publishNote.value,
+        ideaText: currentIdea,
+        angelMarkdown: streamText.angel,
+        devilMarkdown: streamText.devil
+      })
+    });
+
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Launch failed with HTTP ${response.status}.`);
+    }
+
+    publishedIdea = payload.idea;
+    publishPanel.hidden = true;
+    launchButton.textContent = 'Launched';
+    verdictStatus.textContent = `Launched as ${publishedIdea.slug}. Public page arrives next.`;
+  } catch (error) {
+    launchButton.disabled = false;
+    verdictStatus.textContent = error.message || 'Launch failed before liftoff.';
+  } finally {
+    publishSubmit.disabled = false;
+  }
 });
 
 autosizeInput();

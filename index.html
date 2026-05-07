@@ -64,6 +64,39 @@
           <button id="new-idea-button" type="button">Judge another</button>
         </div>
       </section>
+
+      <section id="publish-panel" class="publish-panel" aria-label="Launch idea" hidden>
+        <form id="publish-form" class="publish-form">
+          <label>
+            <span>Title</span>
+            <input id="publish-title" name="title" maxlength="96" autocomplete="off" />
+          </label>
+          <label>
+            <span>Founder name</span>
+            <input
+              id="publish-author"
+              name="authorDisplayName"
+              maxlength="64"
+              autocomplete="nickname"
+              placeholder="Anonymous founder"
+            />
+          </label>
+          <label class="publish-note-field">
+            <span>Launch note</span>
+            <textarea
+              id="publish-note"
+              name="launchNote"
+              rows="2"
+              maxlength="220"
+              placeholder="Optional last words before the crowd starts voting..."
+            ></textarea>
+          </label>
+          <div class="publish-form-actions">
+            <button id="publish-submit" type="submit">Publish to purgatory</button>
+            <button id="publish-cancel" type="button">Cancel</button>
+          </div>
+        </form>
+      </section>
     </main>
   </body>
 </html>
