@@ -36,6 +36,35 @@
         </form>
       </section>
 
+      <section id="public-idea-view" class="public-idea-view" hidden>
+        <nav class="public-nav" aria-label="Public idea navigation">
+          <button id="home-button" type="button">Judge a new idea</button>
+          <button id="copy-public-link-button" type="button">Copy link</button>
+        </nav>
+        <article class="public-idea">
+          <header class="public-idea-header">
+            <p id="public-idea-meta">Freshly launched from purgatory</p>
+            <h2 id="public-idea-title">Loading idea...</h2>
+            <p id="public-idea-author"></p>
+            <p id="public-idea-note"></p>
+          </header>
+          <section class="public-pitch">
+            <h3>The pitch</h3>
+            <p id="public-idea-text"></p>
+          </section>
+          <div class="public-verdicts">
+            <section class="public-verdict public-verdict-angel">
+              <h3>Angel take</h3>
+              <div id="public-angel-output" class="public-markdown"></div>
+            </section>
+            <section class="public-verdict public-verdict-devil">
+              <h3>Devil take</h3>
+              <div id="public-devil-output" class="public-markdown"></div>
+            </section>
+          </div>
+        </article>
+      </section>
+
       <section id="verdict-view" class="verdict-grid" aria-live="polite" hidden>
         <article class="verdict-panel angel-panel">
           <div class="panel-portrait panel-portrait-angel">

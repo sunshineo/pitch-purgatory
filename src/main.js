@@ -6,6 +6,7 @@ const form = document.querySelector('#idea-form');
 const input = document.querySelector('#idea-input');
 const button = document.querySelector('#submit-button');
 const composerView = document.querySelector('#composer-view');
+const publicIdeaView = document.querySelector('#public-idea-view');
 const verdictView = document.querySelector('#verdict-view');
 const charCount = document.querySelector('#char-count');
 const angelOutput = document.querySelector('#angel-output');
@@ -22,6 +23,15 @@ const publishAuthor = document.querySelector('#publish-author');
 const publishNote = document.querySelector('#publish-note');
 const publishSubmit = document.querySelector('#publish-submit');
 const publishCancel = document.querySelector('#publish-cancel');
+const homeButton = document.querySelector('#home-button');
+const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
+const publicIdeaMeta = document.querySelector('#public-idea-meta');
+const publicIdeaTitle = document.querySelector('#public-idea-title');
+const publicIdeaAuthor = document.querySelector('#public-idea-author');
+const publicIdeaNote = document.querySelector('#public-idea-note');
+const publicIdeaText = document.querySelector('#public-idea-text');
+const publicAngelOutput = document.querySelector('#public-angel-output');
+const publicDevilOutput = document.querySelector('#public-devil-output');
 
 let activeController;
 let currentIdea = '';
@@ -48,6 +58,14 @@ function setPostVerdictState(state, message) {
   postVerdictActions.dataset.state = state;
   verdictStatus.textContent = message;
   launchButton.disabled = state !== 'complete';
+}
+
+function showComposer() {
+  composerView.hidden = false;
+  publicIdeaView.hidden = true;
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
 }
 
 function autosizeInput() {
@@ -103,6 +121,7 @@ function appendChunk(side, text) {
 function showError(message) {
   verdictView.hidden = false;
   composerView.hidden = true;
+  publicIdeaView.hidden = true;
   publishPanel.hidden = true;
   setPostVerdictState('error', 'The tribunal tripped over its own robes.');
   angelOutput.classList.add('error');
@@ -114,6 +133,66 @@ function showError(message) {
 function suggestedTitle(idea) {
   const words = idea.replace(/\s+/g, ' ').trim().split(' ');
   return words.slice(0, 8).join(' ').replace(/[.,;:!?]+$/g, '');
+}
+
+function publicIdeaUrl(idea) {
+  return `${window.location.origin}/ideas/${idea.slug}`;
+}
+
+function renderPublicIdea(idea) {
+  document.title = `${idea.title} - Pitch Purgatory`;
+  publicIdeaMeta.textContent = `Launched by ${idea.authorDisplayName} on ${new Date(
+    idea.publishedAt
+  ).toLocaleDateString()}`;
+  publicIdeaTitle.textContent = idea.title;
+  publicIdeaAuthor.textContent = `Founder: ${idea.authorDisplayName}`;
+  publicIdeaNote.textContent = idea.launchNote || 'No launch note. Bold. Suspicious.';
+  publicIdeaText.textContent = idea.ideaText;
+  publicAngelOutput.innerHTML = renderMarkdown(idea.angelMarkdown);
+  publicDevilOutput.innerHTML = renderMarkdown(idea.devilMarkdown);
+  composerView.hidden = true;
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
+  publicIdeaView.hidden = false;
+}
+
+async function loadPublicIdea(slug) {
+  publicIdeaView.hidden = false;
+  composerView.hidden = true;
+  verdictView.hidden = true;
+  postVerdictActions.hidden = true;
+  publishPanel.hidden = true;
+  publicIdeaTitle.textContent = 'Loading idea...';
+  publicIdeaMeta.textContent = 'Fetching the pitch from purgatory';
+  publicIdeaAuthor.textContent = '';
+  publicIdeaNote.textContent = '';
+  publicIdeaText.textContent = '';
+  publicAngelOutput.textContent = '';
+  publicDevilOutput.textContent = '';
+
+  try {
+    const response = await fetch(`/api/ideas/${encodeURIComponent(slug)}`);
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Idea load failed with HTTP ${response.status}.`);
+    }
+    renderPublicIdea(payload.idea);
+  } catch (error) {
+    publicIdeaTitle.textContent = 'This idea escaped purgatory.';
+    publicIdeaMeta.textContent = error.message || 'Could not load this public idea.';
+  }
+}
+
+function route() {
+  const match = window.location.pathname.match(/^\/ideas\/([^/]+)\/?$/);
+  if (match) {
+    loadPublicIdea(decodeURIComponent(match[1]));
+    return;
+  }
+
+  document.title = 'Angel / Devil Startup Judge';
+  showComposer();
 }
 
 async function readSse(response) {
@@ -157,6 +236,7 @@ form.addEventListener('submit', async (event) => {
 
   resetOutputs();
   composerView.hidden = true;
+  publicIdeaView.hidden = true;
   verdictView.hidden = false;
   setPostVerdictState('streaming', 'The advisors are still yelling over each other...');
   setLoading(true);
@@ -274,7 +354,9 @@ publishForm.addEventListener('submit', async (event) => {
     publishedIdea = payload.idea;
     publishPanel.hidden = true;
     launchButton.textContent = 'Launched';
-    verdictStatus.textContent = `Launched as ${publishedIdea.slug}. Public page arrives next.`;
+    verdictStatus.textContent = `Launched as ${publishedIdea.slug}.`;
+    history.pushState({}, '', `/ideas/${publishedIdea.slug}`);
+    renderPublicIdea(publishedIdea);
   } catch (error) {
     launchButton.disabled = false;
     verdictStatus.textContent = error.message || 'Launch failed before liftoff.';
@@ -283,5 +365,27 @@ publishForm.addEventListener('submit', async (event) => {
   }
 });
 
+homeButton.addEventListener('click', () => {
+  history.pushState({}, '', '/');
+  input.value = '';
+  currentIdea = '';
+  autosizeInput();
+  updateCharCount();
+  resetOutputs();
+  showComposer();
+  input.focus();
+});
+
+copyPublicLinkButton.addEventListener('click', async () => {
+  await navigator.clipboard.writeText(window.location.href);
+  copyPublicLinkButton.textContent = 'Copied';
+  window.setTimeout(() => {
+    copyPublicLinkButton.textContent = 'Copy link';
+  }, 1500);
+});
+
+window.addEventListener('popstate', route);
+
 autosizeInput();
 updateCharCount();
+route();
