@@ -1,8 +1,13 @@
-import { handleCreateIdea } from '../lib/ideas-api.mjs';
+import { handleCreateIdea, handleListIdeas } from '../lib/ideas-api.mjs';
 
 export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    await handleListIdeas(req, res);
+    return;
+  }
+
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+    res.setHeader('Allow', 'GET, POST');
     res.status(405).json({ error: 'Method not allowed.' });
     return;
   }

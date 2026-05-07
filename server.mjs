@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleCreateIdea, handleGetIdea } from './lib/ideas-api.mjs';
+import { handleCreateIdea, handleGetIdea, handleListIdeas } from './lib/ideas-api.mjs';
 import {
   requireApiKey,
   streamVerdicts,
@@ -24,6 +24,7 @@ try {
 
 app.use(express.json({ limit: '64kb' }));
 
+app.get('/api/ideas', handleListIdeas);
 app.post('/api/ideas', handleCreateIdea);
 app.get('/api/ideas/:idOrSlug', (req, res) => {
   handleGetIdea(req, res, req.params.idOrSlug);

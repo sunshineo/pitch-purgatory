@@ -59,10 +59,10 @@ p {
 .composer-view {
   min-height: 100vh;
   display: grid;
-  place-items: center;
+  justify-items: center;
   align-content: center;
   gap: 34px;
-  padding: 32px 0 11vh;
+  padding: 32px 0 54px;
 }
 
 .brand-lockup {
@@ -117,6 +117,95 @@ h1 {
 
 .idea-form {
   width: min(1040px, 100%);
+}
+
+.recent-feed {
+  width: min(1040px, 100%);
+  display: grid;
+  gap: 12px;
+}
+
+.feed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.feed-heading h2 {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  line-height: 1.1;
+}
+
+.feed-heading button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #fff8ef;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 0.9rem;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.feed-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.feed-card {
+  min-height: 142px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff8f0;
+  background: rgba(255, 255, 255, 0.08);
+  text-decoration: none;
+  transition:
+    transform 150ms ease,
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.feed-card:hover {
+  border-color: rgba(255, 215, 93, 0.34);
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.feed-card strong {
+  font-size: 1rem;
+  line-height: 1.18;
+}
+
+.feed-card span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.88rem;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.feed-card small,
+.feed-empty {
+  color: rgba(255, 255, 255, 0.54);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+.feed-empty {
+  grid-column: 1 / -1;
+  padding: 16px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .composer-box {
@@ -534,7 +623,7 @@ textarea::placeholder {
 
   .composer-view {
     gap: 26px;
-    padding: 22px 0 10vh;
+    padding: 22px 0 34px;
   }
 
   .title-stage {
@@ -564,6 +653,10 @@ textarea::placeholder {
 
   .composer-meta {
     font-size: 0.82rem;
+  }
+
+  .feed-list {
+    grid-template-columns: 1fr;
   }
 
   .public-idea-view {

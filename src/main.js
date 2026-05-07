@@ -23,6 +23,9 @@ const publishAuthor = document.querySelector('#publish-author');
 const publishNote = document.querySelector('#publish-note');
 const publishSubmit = document.querySelector('#publish-submit');
 const publishCancel = document.querySelector('#publish-cancel');
+const recentFeed = document.querySelector('#recent-feed');
+const recentFeedList = document.querySelector('#recent-feed-list');
+const refreshFeedButton = document.querySelector('#refresh-feed-button');
 const homeButton = document.querySelector('#home-button');
 const copyPublicLinkButton = document.querySelector('#copy-public-link-button');
 const publicIdeaMeta = document.querySelector('#public-idea-meta');
@@ -66,6 +69,7 @@ function showComposer() {
   verdictView.hidden = true;
   postVerdictActions.hidden = true;
   publishPanel.hidden = true;
+  loadRecentIdeas();
 }
 
 function autosizeInput() {
@@ -155,6 +159,48 @@ function renderPublicIdea(idea) {
   postVerdictActions.hidden = true;
   publishPanel.hidden = true;
   publicIdeaView.hidden = false;
+}
+
+function ideaCard(idea) {
+  const link = document.createElement('a');
+  link.className = 'feed-card';
+  link.href = `/ideas/${idea.slug}`;
+
+  const title = document.createElement('strong');
+  title.textContent = idea.title;
+
+  const pitch = document.createElement('span');
+  pitch.textContent = idea.ideaText;
+
+  const meta = document.createElement('small');
+  meta.textContent = `${idea.authorDisplayName} - ${new Date(idea.publishedAt).toLocaleDateString()}`;
+
+  link.append(title, pitch, meta);
+  return link;
+}
+
+async function loadRecentIdeas() {
+  if (recentFeed.hidden) return;
+
+  recentFeedList.innerHTML = '<p class="feed-empty">Summoning fresh launches...</p>';
+
+  try {
+    const response = await fetch('/api/ideas?limit=12');
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Feed failed with HTTP ${response.status}.`);
+    }
+
+    recentFeedList.textContent = '';
+    if (!payload.ideas?.length) {
+      recentFeedList.innerHTML = '<p class="feed-empty">No public launches yet. Be the first brave fool.</p>';
+      return;
+    }
+
+    recentFeedList.append(...payload.ideas.map(ideaCard));
+  } catch (error) {
+    recentFeedList.innerHTML = `<p class="feed-empty">${error.message || 'The feed is sulking.'}</p>`;
+  }
 }
 
 async function loadPublicIdea(slug) {
@@ -357,6 +403,7 @@ publishForm.addEventListener('submit', async (event) => {
     verdictStatus.textContent = `Launched as ${publishedIdea.slug}.`;
     history.pushState({}, '', `/ideas/${publishedIdea.slug}`);
     renderPublicIdea(publishedIdea);
+    loadRecentIdeas();
   } catch (error) {
     launchButton.disabled = false;
     verdictStatus.textContent = error.message || 'Launch failed before liftoff.';
@@ -364,6 +411,16 @@ publishForm.addEventListener('submit', async (event) => {
     publishSubmit.disabled = false;
   }
 });
+
+recentFeedList.addEventListener('click', (event) => {
+  const link = event.target.closest('a[href^="/ideas/"]');
+  if (!link) return;
+  event.preventDefault();
+  history.pushState({}, '', link.getAttribute('href'));
+  route();
+});
+
+refreshFeedButton.addEventListener('click', loadRecentIdeas);
 
 homeButton.addEventListener('click', () => {
   history.pushState({}, '', '/');
