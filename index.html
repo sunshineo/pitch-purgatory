@@ -87,6 +87,38 @@
               <div id="public-devil-output" class="public-markdown"></div>
             </section>
           </div>
+          <section class="comments-section" aria-label="Community comments">
+            <div class="comments-heading">
+              <h3>Community courtroom</h3>
+              <button id="refresh-comments-button" type="button">Refresh</button>
+            </div>
+            <form id="comment-form" class="comment-form">
+              <input
+                id="comment-author"
+                name="authorDisplayName"
+                maxlength="64"
+                placeholder="Anonymous heckler"
+                autocomplete="nickname"
+              />
+              <select id="comment-stance" name="stance" aria-label="Comment stance">
+                <option value="regular">Roast / riff</option>
+                <option value="angel">Angel energy</option>
+                <option value="devil">Devil energy</option>
+                <option value="founder">Founder note</option>
+              </select>
+              <textarea
+                id="comment-body"
+                name="body"
+                rows="3"
+                maxlength="1200"
+                placeholder="Add a blessing, objection, pivot, or suspiciously specific go-to-market plan..."
+              ></textarea>
+              <button id="comment-submit" type="submit">Post comment</button>
+            </form>
+            <div id="comments-list" class="comments-list">
+              <p class="comments-empty">No comments yet.</p>
+            </div>
+          </section>
         </article>
       </section>
 

@@ -41,6 +41,13 @@ const blessVoteButton = document.querySelector('#bless-vote-button');
 const damnVoteButton = document.querySelector('#damn-vote-button');
 const blessVoteCount = document.querySelector('#bless-vote-count');
 const damnVoteCount = document.querySelector('#damn-vote-count');
+const refreshCommentsButton = document.querySelector('#refresh-comments-button');
+const commentForm = document.querySelector('#comment-form');
+const commentAuthor = document.querySelector('#comment-author');
+const commentStance = document.querySelector('#comment-stance');
+const commentBody = document.querySelector('#comment-body');
+const commentSubmit = document.querySelector('#comment-submit');
+const commentsList = document.querySelector('#comments-list');
 
 let activeController;
 let currentIdea = '';
@@ -158,6 +165,33 @@ function renderVoteState(idea) {
   damnVoteButton.classList.toggle('is-selected', idea.viewerVote === 'damn');
 }
 
+function commentNode(comment) {
+  const item = document.createElement('article');
+  item.className = `comment-card comment-${comment.stance}`;
+
+  const meta = document.createElement('p');
+  meta.className = 'comment-meta';
+  meta.textContent = `${comment.authorDisplayName} - ${comment.stance} - ${new Date(
+    comment.createdAt
+  ).toLocaleString()}`;
+
+  const body = document.createElement('p');
+  body.textContent = comment.body;
+
+  item.append(meta, body);
+  return item;
+}
+
+function renderComments(comments) {
+  commentsList.textContent = '';
+  if (!comments.length) {
+    commentsList.innerHTML = '<p class="comments-empty">No comments yet. The courtroom is eerily polite.</p>';
+    return;
+  }
+
+  commentsList.append(...comments.map(commentNode));
+}
+
 function renderPublicIdea(idea) {
   currentPublicIdea = idea;
   document.title = `${idea.title} - Pitch Purgatory`;
@@ -253,9 +287,26 @@ async function loadPublicIdea(slug) {
       throw new Error(payload?.error || `Idea load failed with HTTP ${response.status}.`);
     }
     renderPublicIdea(payload.idea);
+    loadComments();
   } catch (error) {
     publicIdeaTitle.textContent = 'This idea escaped purgatory.';
     publicIdeaMeta.textContent = error.message || 'Could not load this public idea.';
+  }
+}
+
+async function loadComments() {
+  if (!currentPublicIdea) return;
+
+  commentsList.innerHTML = '<p class="comments-empty">Loading courtroom transcripts...</p>';
+  try {
+    const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/comments`);
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Comments failed with HTTP ${response.status}.`);
+    }
+    renderComments(payload.comments || []);
+  } catch (error) {
+    commentsList.innerHTML = `<p class="comments-empty">${error.message || 'Comments refused to load.'}</p>`;
   }
 }
 
@@ -487,6 +538,36 @@ blessVoteButton.addEventListener('click', () => {
 
 damnVoteButton.addEventListener('click', () => {
   submitVote('damn');
+});
+
+refreshCommentsButton.addEventListener('click', loadComments);
+
+commentForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  if (!currentPublicIdea) return;
+
+  commentSubmit.disabled = true;
+  try {
+    const response = await fetch(`/api/ideas/${currentPublicIdea.slug}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        authorDisplayName: commentAuthor.value,
+        stance: commentStance.value,
+        body: commentBody.value
+      })
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(payload?.error || `Comment failed with HTTP ${response.status}.`);
+    }
+    commentBody.value = '';
+    commentsList.prepend(commentNode(payload.comment));
+  } catch (error) {
+    commentsList.innerHTML = `<p class="comments-empty">${error.message || 'Comment failed.'}</p>`;
+  } finally {
+    commentSubmit.disabled = false;
+  }
 });
 
 homeButton.addEventListener('click', () => {

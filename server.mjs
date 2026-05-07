@@ -2,7 +2,14 @@ import 'dotenv/config';
 import express from 'express';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleCreateIdea, handleGetIdea, handleListIdeas, handleVoteIdea } from './lib/ideas-api.mjs';
+import {
+  handleCreateComment,
+  handleCreateIdea,
+  handleGetIdea,
+  handleListComments,
+  handleListIdeas,
+  handleVoteIdea
+} from './lib/ideas-api.mjs';
 import {
   requireApiKey,
   streamVerdicts,
@@ -28,6 +35,12 @@ app.get('/api/ideas', handleListIdeas);
 app.post('/api/ideas', handleCreateIdea);
 app.post('/api/ideas/:idOrSlug/votes', (req, res) => {
   handleVoteIdea(req, res, req.params.idOrSlug);
+});
+app.get('/api/ideas/:idOrSlug/comments', (req, res) => {
+  handleListComments(req, res, req.params.idOrSlug);
+});
+app.post('/api/ideas/:idOrSlug/comments', (req, res) => {
+  handleCreateComment(req, res, req.params.idOrSlug);
 });
 app.get('/api/ideas/:idOrSlug', (req, res) => {
   handleGetIdea(req, res, req.params.idOrSlug);

@@ -25,6 +25,7 @@ body {
 
 button,
 input,
+select,
 textarea {
   font: inherit;
 }
@@ -459,6 +460,114 @@ textarea::placeholder {
   padding-left: 1.25em;
 }
 
+.comments-section {
+  display: grid;
+  gap: 14px;
+  padding: clamp(20px, 4vw, 34px);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.comments-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.comments-heading h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+}
+
+.comments-heading button,
+.comment-form button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #211913;
+  background: #ffd75d;
+  font-weight: 860;
+  cursor: pointer;
+}
+
+.comment-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px;
+  gap: 10px;
+}
+
+.comment-form textarea,
+.comment-form button {
+  grid-column: 1 / -1;
+}
+
+.comment-form input,
+.comment-form select,
+.comment-form textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  color: #fff8ef;
+  background: rgba(255, 255, 255, 0.1);
+  outline: none;
+}
+
+.comment-form textarea {
+  max-height: 180px;
+}
+
+.comment-form input:focus,
+.comment-form select:focus,
+.comment-form textarea:focus {
+  border-color: rgba(255, 215, 93, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 215, 93, 0.12);
+}
+
+.comments-list {
+  display: grid;
+  gap: 10px;
+}
+
+.comment-card,
+.comments-empty {
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.comment-card {
+  display: grid;
+  gap: 7px;
+}
+
+.comment-angel {
+  background: rgba(255, 215, 93, 0.16);
+}
+
+.comment-devil {
+  background: rgba(255, 95, 85, 0.16);
+}
+
+.comment-founder {
+  background: rgba(99, 220, 164, 0.16);
+}
+
+.comment-meta,
+.comments-empty {
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 0.82rem;
+  font-weight: 780;
+}
+
+.comment-card p:last-child {
+  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.45;
+}
+
 .verdict-grid {
   height: 100vh;
   display: grid;
@@ -738,6 +847,10 @@ textarea::placeholder {
   }
 
   .public-verdicts {
+    grid-template-columns: 1fr;
+  }
+
+  .comment-form {
     grid-template-columns: 1fr;
   }
 
