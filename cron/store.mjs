@@ -34,6 +34,26 @@ async function ensureCronSchema() {
       );
 
       CREATE INDEX IF NOT EXISTS activity_runs_created_at_idx ON activity_runs (created_at DESC);
+
+      CREATE TABLE IF NOT EXISTS cron_idea_evaluations (
+        idea_id text PRIMARY KEY,
+        slug text NOT NULL,
+        bucket text NOT NULL CHECK (
+          bucket IN (
+            'mostly_blessed',
+            'mildly_blessed',
+            'controversial',
+            'mildly_damned',
+            'mostly_damned'
+          )
+        ),
+        reason text NOT NULL DEFAULT '',
+        fallback boolean NOT NULL DEFAULT false,
+        created_at timestamptz NOT NULL DEFAULT now(),
+        updated_at timestamptz NOT NULL DEFAULT now()
+      );
+
+      CREATE INDEX IF NOT EXISTS cron_idea_evaluations_slug_idx ON cron_idea_evaluations (slug);
     `);
   }
 
@@ -48,11 +68,15 @@ export async function closeCronStore() {
 }
 
 export async function listExistingIdeaTexts() {
+  await ensureCronSchema();
+
   const result = await getPool().query('SELECT idea_text FROM ideas WHERE status = $1', ['published']);
   return new Set(result.rows.map((row) => row.idea_text));
 }
 
 export async function listRandomIdeas({ limit = 5 } = {}) {
+  await ensureCronSchema();
+
   const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 50);
   const result = await getPool().query(
     `
@@ -86,6 +110,8 @@ export async function listRandomIdeas({ limit = 5 } = {}) {
 }
 
 export async function countIdeasCreatedSince({ source, since }) {
+  await ensureCronSchema();
+
   if (source !== 'cron') {
     throw new Error('Cron idea counts only support source="cron".');
   }
@@ -102,6 +128,69 @@ export async function countIdeasCreatedSince({ source, since }) {
   );
 
   return Number(result.rows[0]?.count || 0);
+}
+
+export async function listIdeasMissingEvaluations({ limit = 100 } = {}) {
+  await ensureCronSchema();
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const result = await getPool().query(
+    `
+      SELECT i.id, i.slug, i.title, i.idea_text
+      FROM ideas i
+      LEFT JOIN cron_idea_evaluations e ON e.idea_id = i.id
+      WHERE i.status = 'published'
+        AND e.idea_id IS NULL
+      ORDER BY i.published_at ASC
+      LIMIT $1
+    `,
+    [safeLimit]
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    ideaText: row.idea_text
+  }));
+}
+
+export async function getIdeaEvaluation(ideaId) {
+  await ensureCronSchema();
+
+  const result = await getPool().query(
+    `
+      SELECT *
+      FROM cron_idea_evaluations
+      WHERE idea_id = $1
+      LIMIT 1
+    `,
+    [ideaId]
+  );
+
+  return result.rows[0] || null;
+}
+
+export async function upsertIdeaEvaluation({ ideaId, slug, bucket, reason = '', fallback = false }) {
+  await ensureCronSchema();
+
+  const result = await getPool().query(
+    `
+      INSERT INTO cron_idea_evaluations (idea_id, slug, bucket, reason, fallback)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (idea_id)
+      DO UPDATE SET
+        slug = EXCLUDED.slug,
+        bucket = EXCLUDED.bucket,
+        reason = EXCLUDED.reason,
+        fallback = EXCLUDED.fallback,
+        updated_at = now()
+      RETURNING *
+    `,
+    [ideaId, slug, bucket, String(reason || '').slice(0, 500), fallback]
+  );
+
+  return result.rows[0];
 }
 
 export async function recordActivityRun({ status, actions = [], errorMessage = '' }) {

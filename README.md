@@ -30,6 +30,7 @@ The tone is intentionally light, funny, and animated. This is not meant to feel 
 npm run dev
 npm run dev:api
 npm run dev:web
+npm run seed:backfill-evaluations
 npm run seed:once
 npm run build
 npm start
@@ -38,6 +39,7 @@ npm start
 - `npm run dev` starts both the local Express API and Vite.
 - `npm run dev:api` starts only the API, defaulting to `http://localhost:8787`.
 - `npm run dev:web` starts only the Vite frontend, defaulting to `http://localhost:5173` unless the port is taken.
+- `npm run seed:backfill-evaluations` creates missing cron-only vote bucket evaluations for published ideas.
 - `npm run seed:once` runs one seeded board activity pass from this machine.
 - `npm run build` builds the frontend into `dist/`.
 - `npm start` serves the built app through Express.
@@ -76,6 +78,8 @@ The frontend posts ideas to `/api/judge` and reads a `text/event-stream` respons
 Published ideas and community interactions use `lib/store.mjs` through `lib/ideas-api.mjs`. The local Express routes and Vercel serverless handlers intentionally share that same API layer.
 
 Seeded board activity lives in `cron/`. Run one pass locally with `npm run seed:once`. It randomly publishes from the 200-item seed bank in `cron/seed-data.mjs` at about 2-3 ideas per day when scheduled every 30 minutes, casts 0-10 random votes, and asks the LLM for 0-2 short idea-specific comments. Those writes go through the same app storage functions as normal anonymous activity.
+
+Cron keeps its vote-shaping metadata in `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns each idea to `mostly_blessed`, `mildly_blessed`, `controversial`, `mildly_damned`, or `mostly_damned`; if the evaluator fails, cron stores a random fallback bucket. The public app schema does not depend on these buckets.
 
 For a Mac that should keep seeding without an open terminal, use `launchd` to run one pass every 30 minutes:
 

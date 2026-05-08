@@ -11,12 +11,15 @@ import {
   validateStartupIdea
 } from '../lib/judge.mjs';
 import { writeRelatedComment } from './comment.mjs';
+import { blessProbabilityForBucket, evaluateIdeaTraffic, randomTrafficBucket } from './evaluation.mjs';
 import { seedCommentAuthors, seedIdeas, seedVoterPoolSize } from './seed-data.mjs';
 import {
   countIdeasCreatedSince,
+  getIdeaEvaluation,
   listExistingIdeaTexts,
   listRandomIdeas,
-  recordActivityRun
+  recordActivityRun,
+  upsertIdeaEvaluation
 } from './store.mjs';
 
 const runsPerDayAtThirtyMinutes = 48;
@@ -37,8 +40,8 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function randomVoteType() {
-  return Math.random() < 0.54 ? 'bless' : 'damn';
+function randomVoteType(bucket) {
+  return Math.random() < blessProbabilityForBucket(bucket) ? 'bless' : 'damn';
 }
 
 function randomVoteCount() {
@@ -110,8 +113,41 @@ async function createSeededIdea(actions) {
     authorDisplayName: 'Anonymous founder'
   });
 
-  actions.push({ type: 'create_idea', id: idea.id, slug: idea.slug, title: idea.title });
+  const evaluation = await ensureIdeaEvaluation(idea);
+  actions.push({
+    type: 'create_idea',
+    id: idea.id,
+    slug: idea.slug,
+    title: idea.title,
+    bucket: evaluation.bucket,
+    fallback: evaluation.fallback
+  });
   return idea;
+}
+
+async function ensureIdeaEvaluation(idea) {
+  const existing = await getIdeaEvaluation(idea.id);
+  if (existing) return existing;
+
+  try {
+    const evaluation = await evaluateIdeaTraffic(idea.ideaText);
+    return upsertIdeaEvaluation({
+      ideaId: idea.id,
+      slug: idea.slug,
+      bucket: evaluation.bucket,
+      reason: evaluation.reason,
+      fallback: false
+    });
+  } catch (error) {
+    const bucket = randomTrafficBucket();
+    return upsertIdeaEvaluation({
+      ideaId: idea.id,
+      slug: idea.slug,
+      bucket,
+      reason: `Fallback bucket: ${error.message || 'traffic evaluation failed'}`,
+      fallback: true
+    });
+  }
 }
 
 async function voteOnRandomIdeas(actions, voteCount) {
@@ -123,7 +159,8 @@ async function voteOnRandomIdeas(actions, voteCount) {
   const ideas = await listRandomIdeas({ limit: voteCount });
 
   for (const idea of ideas) {
-    const voteType = randomVoteType();
+    const evaluation = await ensureIdeaEvaluation(idea);
+    const voteType = randomVoteType(evaluation.bucket);
     const voter = randomSeedVisitorId();
     const updatedIdea = await voteOnIdea({
       idOrSlug: idea.slug,
@@ -134,6 +171,8 @@ async function voteOnRandomIdeas(actions, voteCount) {
     actions.push({
       type: 'vote',
       slug: idea.slug,
+      bucket: evaluation.bucket,
+      fallback: evaluation.fallback,
       voteType,
       voter,
       bless: updatedIdea?.votes?.bless ?? 0,

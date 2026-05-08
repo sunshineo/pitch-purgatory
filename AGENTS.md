@@ -15,6 +15,7 @@ The frontend lives in `src/` and `index.html`. The local API server is `server.m
 - `npm run dev`: start both the Express API on `http://localhost:8787` and Vite on `http://localhost:5173`.
 - `npm run dev:api`: start only the local Express API.
 - `npm run dev:web`: start only the Vite frontend.
+- `npm run seed:backfill-evaluations`: create missing cron-only vote bucket evaluations for published ideas.
 - `npm run seed:once`: run one seeded board activity pass from the local machine.
 - `npm run build`: build the frontend into `dist/`.
 - `npm start`: run the Express server, serving `dist/`.
@@ -53,6 +54,7 @@ LLM calls cost real money. The API key is expected to have restricted permission
 - Seeded board activity is isolated under `cron/` and runnable from this Mac with `npm run seed:once`; use `launchd` `StartInterval` for repeated runs.
 - `cron/seed-data.mjs` contains 200 seed ideas plus comment authors. The cron may publish one seed idea after running the same validation, angel/devil judgment, and title summary pipeline as a normal user launch.
 - Each cron run casts 0-10 random votes and posts 0-2 LLM-written short comments on random existing ideas.
+- Cron vote shaping uses `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns one of five buckets; if evaluation fails, cron stores a random fallback bucket. Do not add these bucket fields to the public app schema.
 - Vite proxies `/api` to `http://localhost:8787` in development.
 - `server.mjs` and `api/judge.js` intentionally share the same logic from `lib/judge.mjs`.
 - `validateStartupIdea()` performs a small classifier call before streaming the angel/devil responses.
