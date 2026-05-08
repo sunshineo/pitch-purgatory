@@ -140,7 +140,7 @@ function appendChunk(side, text) {
   panel.scrollTop = panel.scrollHeight;
 }
 
-function showError(message) {
+function showError(message, options = {}) {
   verdictView.hidden = false;
   composerView.hidden = true;
   ideasBoardView.hidden = true;
@@ -149,6 +149,13 @@ function showError(message) {
   setVerdictMode(true);
   angelOutput.classList.add('error');
   devilOutput.classList.add('error');
+
+  if (options.rejected) {
+    angelOutput.textContent = `The pitch bouncer blocked this one: ${message}`;
+    devilOutput.textContent = 'No debate started. Try phrasing it as a startup idea, not a jailbreak spell.';
+    return;
+  }
+
   angelOutput.textContent = message;
   devilOutput.textContent = 'The debate crashed before the roast could finish.';
 }
@@ -482,7 +489,10 @@ form.addEventListener('submit', async (event) => {
 
     if (!response.ok) {
       const payload = await response.json().catch(() => null);
-      throw new Error(payload?.error || `The judge returned HTTP ${response.status}.`);
+      const error = new Error(payload?.error || `The judge returned HTTP ${response.status}.`);
+      error.code = payload?.code;
+      error.status = response.status;
+      throw error;
     }
 
     if (!response.body) {
@@ -492,7 +502,9 @@ form.addEventListener('submit', async (event) => {
     await readSse(response);
   } catch (error) {
     if (error.name !== 'AbortError') {
-      showError(error.message || 'Something went sideways.');
+      showError(error.message || 'Something went sideways.', {
+        rejected: error.code === 'idea_rejected' || error.status === 422
+      });
     }
   } finally {
     if (!streamComplete && streamText.angel && streamText.devil) {

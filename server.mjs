@@ -57,7 +57,7 @@ app.post('/api/judge', async (req, res) => {
   try {
     const verdict = await validateStartupIdea(input.idea);
     if (!verdict.allowed) {
-      res.status(422).json({ error: verdict.reason });
+      res.status(422).json({ code: 'idea_rejected', error: verdict.reason });
       return;
     }
   } catch (error) {
