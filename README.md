@@ -11,6 +11,7 @@ The tone is intentionally light, funny, and animated. This is not meant to feel 
 - Published idea pages with sanitized markdown verdict output.
 - Community voting and comments.
 - Public `/ideas` board with mutually exclusive vote buckets.
+- Seeded board activity cron for slow anonymous traffic simulation.
 - Shared API logic for local Express and Vercel serverless deployment.
 
 ## Tech Stack
@@ -29,6 +30,7 @@ The tone is intentionally light, funny, and animated. This is not meant to feel 
 npm run dev
 npm run dev:api
 npm run dev:web
+npm run seed:once
 npm run build
 npm start
 ```
@@ -36,6 +38,7 @@ npm start
 - `npm run dev` starts both the local Express API and Vite.
 - `npm run dev:api` starts only the API, defaulting to `http://localhost:8787`.
 - `npm run dev:web` starts only the Vite frontend, defaulting to `http://localhost:5173` unless the port is taken.
+- `npm run seed:once` runs one seeded board activity pass from this machine.
 - `npm run build` builds the frontend into `dist/`.
 - `npm start` serves the built app through Express.
 
@@ -57,6 +60,9 @@ LLM_MODEL=gpt-4o-mini
 LLM_API_URL=https://api.openai.com/v1/responses
 MAX_OUTPUT_TOKENS=800
 PORT=8787
+SEED_BOARD_ENABLED=true
+SEED_IDEA_PROBABILITY=0.0520833333
+SEED_MAX_IDEAS_PER_DAY=4
 ```
 
 Do not commit `.env` files or secrets. Keep all LLM calls server-side and be careful with changes that increase model call count, token count, or retry behavior.
@@ -68,6 +74,45 @@ The frontend posts ideas to `/api/judge` and reads a `text/event-stream` respons
 `server.mjs` and `api/judge.js` both use the same shared logic from `lib/judge.mjs`. That shared module validates the idea, loads `prompts/angel.md` and `prompts/devil.md`, calls the OpenAI Responses API, and parses streamed SSE output.
 
 Published ideas and community interactions use `lib/store.mjs` through `lib/ideas-api.mjs`. The local Express routes and Vercel serverless handlers intentionally share that same API layer.
+
+Seeded board activity lives in `cron/`. Run one pass locally with `npm run seed:once`. It randomly publishes from the 200-item seed bank in `cron/seed-data.mjs` at about 2-3 ideas per day when scheduled every 30 minutes, casts 0-10 random votes, and asks the LLM for 0-2 short idea-specific comments. Those writes go through the same app storage functions as normal anonymous activity.
+
+For a Mac that should keep seeding without an open terminal, use `launchd` to run one pass every 30 minutes:
+
+```sh
+mkdir -p ~/Library/LaunchAgents
+cat > ~/Library/LaunchAgents/com.idea-purgatory.seed-board.plist <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.idea-purgatory.seed-board</string>
+  <key>WorkingDirectory</key>
+  <string>/Users/gordon/code/idea-purgatory</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>cd /Users/gordon/code/idea-purgatory &amp;&amp; npm run seed:once</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>1800</integer>
+  <key>StandardOutPath</key>
+  <string>/Users/gordon/code/idea-purgatory/seed-board.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/gordon/code/idea-purgatory/seed-board.err.log</string>
+</dict>
+</plist>
+EOF
+launchctl load ~/Library/LaunchAgents/com.idea-purgatory.seed-board.plist
+```
+
+Unload it with:
+
+```sh
+launchctl unload ~/Library/LaunchAgents/com.idea-purgatory.seed-board.plist
+```
 
 ## Vote Buckets and ROPE
 
@@ -116,4 +161,4 @@ The app expects each response to stay under 500 words.
 
 ## Deployment
 
-`vercel.json` configures Vite output from `dist/` and sets the `api/judge.js` max duration to 60 seconds. If API behavior changes, verify that local Express and Vercel serverless behavior still match.
+`vercel.json` configures Vite output from `dist/` and sets `api/judge.js` max duration to 60 seconds. Seeded board activity is expected to run locally from this Mac. If API behavior changes, verify that local Express and Vercel serverless behavior still match.

@@ -8,6 +8,7 @@
     "dev": "concurrently \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node server.mjs",
     "dev:web": "vite --host 0.0.0.0",
+    "seed:once": "node cron/seed-board-once.mjs",
     "start": "node server.mjs"
   },
   "dependencies": {

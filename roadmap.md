@@ -46,20 +46,20 @@ team id: team_EQDjfSZelbSqRuKBF0T12md0
 production URL: https://idea-purgatory.vercel.app
 ```
 
-Database direction:
+Current database state:
 
-- Create a new Neon project named `idea-purgatory` in the same Neon org, rather than sharing the `chore-points-app` database.
-- Neon Free currently allows 100 projects, 100 CU-hours per month per project, and 0.5 GB storage per project, so a second small project should stay free if usage remains inside the free limits.
-- Add the new database connection string to the Vercel `idea-purgatory` project as `DATABASE_URL`.
-- Use local development storage that does not require committing secrets. A local `.env` can point at the Neon dev database, but `.env` files must remain uncommitted.
+- The app already uses Postgres via `pg` and requires `DATABASE_URL` for community features.
+- `lib/store.mjs` creates the current `ideas`, `votes`, and `comments` tables with `CREATE TABLE IF NOT EXISTS`.
+- `lib/ideas-api.mjs` exposes the shared publish, list, vote, and comment handlers used by both local Express and Vercel serverless routes.
+- A Neon project named `idea-purgatory` is still the intended production database direction if `DATABASE_URL` points there, but future agents should not assume persistence is missing.
+- Use local development storage that does not require committing secrets. A local `.env` can point at a Neon dev database, but `.env` files must remain uncommitted.
 - The generated `.neon` context file is local CLI state and should not be committed unless there is an explicit decision to make repo-local Neon context part of the project.
 
-Implementation scope for roadmap items 1-8:
+Current implemented scope:
 
-- Includes post-verdict actions, persistence, public idea pages, recent feed, voting, ranked feeds, comments, forks, and rejudging.
-- Does not include real accounts.
-- Does not include fake backing or real-money backing.
-- Use anonymous/session-based identity only where needed to prevent trivial repeated voting and to connect a user's own just-created idea to post-verdict actions.
+- Includes post-verdict publishing, Postgres persistence, public idea pages, `/ideas` board columns, recent/ranked feeds, bless/damn votes, and flat comments.
+- Does not yet include forks, rejudging, real accounts, fake backing, real-money backing, admin moderation, or automated board activity.
+- Uses anonymous/session-based identity for votes through the `pp_visitor` cookie.
 
 ## Phase 0: Current App Baseline
 
@@ -69,204 +69,72 @@ Current behavior:
 - `src/main.js` posts `{ idea }` to `/api/judge`.
 - `lib/judge.mjs` validates the input, runs the startup-idea classifier, then streams angel and devil LLM responses.
 - The browser renders streamed markdown with `marked` and sanitizes it with `DOMPurify`.
-- After the stream completes, the user can read the two takes, but there is no durable artifact or next action.
+- After the stream completes, the user can launch the judged idea as a public post through `POST /api/ideas`.
+- Public ideas have reloadable pages, bless/damn voting, flat comments, and `/ideas` board columns for Blessed, Purgatory, and Damned.
 
-Main limitation:
+Main limitations:
 
-- The app has a great punchline, but no retention loop. Once the verdicts are read, the session is basically over.
+- The board has community mechanics, but no natural activity generator yet.
+- Public write endpoints need stronger rate limiting and moderation before broader traffic.
+- Comments are flat only; `parent_comment_id` exists in the schema, but replies are not a real UI flow yet.
+- Forks and rejudging are still future work.
 
-## Phase 1: Publishable Judgments MVP
+## Phase 1: Shipped Community Baseline
 
-Goal: turn a completed judgment into a public artifact with a shareable URL.
+Already implemented:
 
-User flow:
+- Publish completed judgments as durable `ideas`.
+- Store published idea text, verdict markdown, author display name, launch note, and version metadata in Postgres.
+- Fetch individual public ideas with `GET /api/ideas/:idOrSlug`.
+- List ideas with `GET /api/ideas`.
+- Sort and bucket feeds by recent, blessed, damned, controversial, and purgatory.
+- Vote with `POST /api/ideas/:idOrSlug/votes`.
+- Comment with `GET/POST /api/ideas/:idOrSlug/comments`.
+- Use anonymous visitor cookies for one vote row per idea per visitor.
 
-1. User submits an idea.
-2. Angel and devil stream their takes.
-3. When both streams finish, show a `Launch this idea` action.
-4. User can optionally add:
-   - idea title
-   - display name
-   - one-line launch note
-5. App creates a public idea page.
-6. Public page shows:
-   - original idea
-   - angel take
-   - devil take
-   - created date
-   - share link
+Important current implementation details:
 
-Frontend work:
+- `lib/store.mjs` owns schema creation and SQL queries.
+- `lib/ideas-api.mjs` owns request parsing, payload validation, cookie-based visitor identity, and JSON responses.
+- `server.mjs` wires the local Express routes.
+- `api/ideas.js`, `api/ideas/[id].js`, `api/ideas/[id]/votes.js`, and `api/ideas/[id]/comments.js` wire the Vercel serverless routes.
 
-- Track stream completion in `src/main.js`.
-- Store the final `idea`, `angel`, and `devil` strings in memory after judging.
-- Add a post-verdict action bar:
-  - `Launch this idea`
-  - `Revise pitch`
-  - `Copy link` once published
-- Add a publish modal or inline publish panel.
-- Add a route/view for public idea pages, either through simple client-side routing or server-rendered JSON hydration.
+## Phase 2: Traffic, Moderation, and Activity Quality
 
-Backend work:
+Goal: make the board feel alive while the site is still unpromoted and anonymous.
 
-- Add persistent storage.
-- Add `POST /api/ideas` to publish a judged idea.
-- Add `GET /api/ideas/:slugOrId` to fetch a public idea.
-- Validate and size-limit all publish fields.
-- Sanitize on render, not on storage, so raw markdown can be preserved while output remains safe.
+Board activity model:
 
-Suggested first storage options:
+- Seed a small amount of board activity on a schedule, with randomness and daily caps.
+- Prefer curated ideas and templated comments first so automation does not create unnecessary LLM spend.
+- Only use LLM generation for occasional high-quality seed posts or comments, behind strict per-day limits.
+- Current implementation has a 200-item seed bank and a local Mac runner that can run every 30 minutes. It averages 2-3 new seeded ideas per day, casts 0-10 random votes, and posts 0-2 short LLM-written comments per run.
 
-- SQLite for local-first simplicity.
-- Vercel Postgres, Neon, or another managed Postgres option for production.
-- Avoid adding a heavy ORM at first unless the schema starts growing quickly.
+Automation work:
 
-Suggested `ideas` fields:
+- Added a local runner script: `npm run seed:once`; use `launchd` `StartInterval` for the 30-minute schedule.
+- Kept all seeded activity implementation files under `cron/` so they stay separate from app/runtime code.
+- Added an `activity_runs` table so each run is auditable.
+- Added a local seed bank of funny startup ideas, bot display names, and vote patterns.
+- Each run chooses at most a few actions: maybe publish one seed idea, add 2 comments, and add 5 votes.
+- Skip or reduce automation when there has already been enough recent real activity.
+- Keep app records normal: cron-created ideas, votes, and comments should use the same storage path and shape as anonymous user activity.
 
-```text
-id
-slug
-title
-idea_text
-angel_markdown
-devil_markdown
-launch_note
-author_display_name
-status
-created_at
-updated_at
-published_at
-```
+Moderation work:
+
+- Add rate limits before public launch pressure increases.
+- Add report buttons on ideas and comments.
+- Keep `status` fields as the moderation mechanism instead of hard deletes.
+- Add a tiny admin-only moderation endpoint/view before scaling comments.
 
 Definition of done:
 
-- A judged idea can be published.
-- The public URL is reloadable and shareable.
-- Publishing does not trigger extra LLM calls.
-- Build passes with `npm run build`.
+- The board gets a slow trickle of seeded activity.
+- Automation has daily caps, a kill switch, and logs.
+- Synthetic activity does not trigger unbounded LLM calls.
+- Public vote and comment endpoints have basic abuse protection.
 
-## Phase 2: Voting and Leaderboards
-
-Goal: give the community a fast reaction loop.
-
-Voting model:
-
-- `Bless it`: this idea might ascend.
-- `Damn it`: this idea belongs in the pit.
-- Optional third reaction later: `Fund the chaos`.
-
-User flow:
-
-1. Visitor opens a public idea page.
-2. Visitor votes once per idea.
-3. Vote counts update immediately.
-4. Idea appears on ranked feeds.
-
-Frontend work:
-
-- Add vote buttons to public idea pages.
-- Add optimistic vote updates.
-- Add a homepage/feed view:
-  - `Freshly Judged`
-  - `Most Blessed`
-  - `Most Damned`
-  - `Most Controversial`
-  - `Actually... Maybe?`
-
-Backend work:
-
-- Add `POST /api/ideas/:id/votes`.
-- Add `GET /api/ideas` with sort options.
-- Store anonymous vote identity using a signed cookie or local session token.
-- Rate-limit vote endpoints.
-
-Suggested `votes` fields:
-
-```text
-id
-idea_id
-visitor_id
-vote_type
-created_at
-updated_at
-```
-
-Ranking ideas:
-
-- Start with simple score formulas:
-  - blessed score = bless count
-  - damned score = damn count
-  - controversial score = high total votes with close bless/damn split
-  - fresh score = recent ideas with some activity
-- Add time decay once the feed has enough volume.
-
-Definition of done:
-
-- Public ideas can receive votes.
-- Visitors cannot spam repeated votes trivially.
-- Homepage has at least one ranked feed.
-- Vote counts survive reloads.
-
-## Phase 3: Comments and Community Debate
-
-Goal: turn ideas into discussion threads.
-
-Comment types:
-
-- regular comment
-- angel-side comment
-- devil-side comment
-- founder update
-
-User flow:
-
-1. Visitor reads a judged idea.
-2. Visitor leaves a comment.
-3. Other visitors can reply or react.
-4. The idea page becomes a debate, not just a static artifact.
-
-Frontend work:
-
-- Add comment composer under each idea.
-- Add compact threaded comments.
-- Add labels like `Angel investor energy`, `Devil's advocate`, and `Founder note`.
-- Keep comments visually lively but readable.
-
-Backend work:
-
-- Add `POST /api/ideas/:id/comments`.
-- Add `GET /api/ideas/:id/comments`.
-- Add basic moderation filters and rate limits.
-- Add soft-delete or hidden status for moderation.
-
-Suggested `comments` fields:
-
-```text
-id
-idea_id
-parent_comment_id
-author_display_name
-body
-stance
-status
-created_at
-updated_at
-```
-
-Moderation requirements:
-
-- Size-limit comments.
-- Reject obvious spam.
-- Hide comments with unsafe content.
-- Add admin-only moderation tools before the public audience grows.
-
-Definition of done:
-
-- Public idea pages support comments.
-- Comments are stored, reloadable, and rate-limited.
-- Moderation can hide abusive or spammy content without deleting the whole idea.
-
-## Phase 4: Forks, Revisions, and Rejudging
+## Phase 3: Forks, Revisions, and Rejudging
 
 Goal: make ideas evolve.
 
@@ -318,7 +186,7 @@ Definition of done:
 - Original ideas link to their forks.
 - Forks link back to the original.
 
-## Phase 5: Profiles, Saves, and Notifications
+## Phase 4: Profiles, Saves, and Notifications
 
 Goal: support identity and repeat participation once the public loop is working.
 
@@ -363,7 +231,7 @@ Definition of done:
 - Users can follow an idea.
 - Users can distinguish their own ideas from community ideas.
 
-## Phase 6: Fake Backing and Demand Signals
+## Phase 5: Fake Backing and Demand Signals
 
 Goal: test Kickstarter-like behavior without real-money complexity.
 
@@ -405,7 +273,7 @@ Definition of done:
 - Idea pages show demand signals.
 - Ranked feeds can include `Most Fake-Funded`.
 
-## Phase 7: Real Backing Experiments
+## Phase 6: Real Backing Experiments
 
 Goal: only explore real money after community behavior proves demand.
 
@@ -537,39 +405,40 @@ Quality metrics:
 
 ## Suggested Build Order
 
-1. Add stream-complete state and post-verdict actions.
-2. Add persistence for published ideas.
-3. Add public idea pages.
-4. Add homepage feed for recent ideas.
-5. Add voting.
-6. Add ranked feeds.
-7. Add comments.
-8. Add forks and rejudging.
-9. Add anonymous sessions or accounts.
-10. Add fake backing signals.
-11. Evaluate whether real-money backing is worth the complexity.
+1. Add basic rate limiting for public publish, vote, and comment endpoints.
+2. Add moderation/reporting primitives for ideas and comments.
+3. Add an auditable seeded-activity system with daily caps and a kill switch.
+4. Add a small curated seed bank for ideas, comments, and vote patterns.
+5. Add a protected cron endpoint to trickle labeled board activity.
+6. Add visible freshness signals and lively board animations around new activity.
+7. Add forks and rejudging.
+8. Add anonymous session ownership for "my launched ideas."
+9. Add fake backing signals only after moderation basics are in place.
+10. Evaluate whether real-money backing is worth the complexity.
 
 ## Open Decisions
 
-- Exact database library/migration approach for this plain ESM Vite/Express app.
+- Whether to keep `CREATE TABLE IF NOT EXISTS` in `lib/store.mjs` or introduce a tiny migration flow before the schema grows.
 - Whether to require auth before publishing.
 - Whether ideas should be editable after publishing or versioned only.
-- Whether comments should be flat first or threaded from day one.
+- Whether comments should stay flat in the UI or expose the existing `parent_comment_id` as threaded replies.
 - Whether public idea pages should be server-rendered for better sharing previews.
-- What the first ranking formula should be.
+- How much automated board activity is appropriate per day.
+- Whether to expose automation publicly later, once the product has real users and a moderation story.
 - How much moderation should be automated versus admin-reviewed.
 
 ## Near-Term MVP Scope
 
 The smallest version worth shipping:
 
-- publish judged idea
-- public share page
-- recent ideas feed
-- bless/damn votes
+- existing judged idea publishing
+- existing public share pages
+- existing recent and bucketed idea feeds
+- existing bless/damn votes
+- existing comments
 - basic rate limiting
-- comments
-- forks and rejudging
+- report buttons and status-based moderation
+- seeded activity for normal bulletin-board motion
 - anonymous/session-based identity only
 - no real accounts
 - no fake backing
@@ -577,6 +446,6 @@ The smallest version worth shipping:
 
 That version completes the first real loop:
 
-`Submit idea -> get judged -> publish -> share -> community votes/comments -> idea appears in ranked feeds -> someone forks it -> revised idea gets rejudged`
+`Submit idea -> get judged -> publish -> share -> community votes/comments -> idea appears in ranked feeds -> seeded and real activity keep the board moving`
 
 After that loop works, consider accounts, fake backing signals, and only later real-money experiments.
