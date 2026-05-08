@@ -47,6 +47,9 @@ const placeholders = {
   devil: 'Sharpening objections...'
 };
 
+const purgatoryMinimumVotes = 3;
+const purgatoryRopeFloor = 0.2;
+
 function setLoading(isLoading) {
   document.body.classList.toggle('is-streaming', isLoading);
   button.disabled = isLoading;
@@ -212,6 +215,44 @@ function voteButton(type, count) {
   return button;
 }
 
+function purgatoryThreshold(totalVotes) {
+  if (totalVotes < purgatoryMinimumVotes) return 1;
+  return Math.max(purgatoryRopeFloor, 1 / Math.sqrt(totalVotes));
+}
+
+function voteMeter(idea) {
+  const bless = idea.votes?.bless ?? 0;
+  const damn = idea.votes?.damn ?? 0;
+  const total = bless + damn;
+  const blessShare = total === 0 ? 50 : (bless / total) * 100;
+  const threshold = purgatoryThreshold(total);
+  const bandWidth = Math.min(threshold, 1) * 100;
+  const bandStart = (100 - bandWidth) / 2;
+
+  const meter = document.createElement('span');
+  meter.className = 'feed-vote-meter';
+  meter.setAttribute(
+    'aria-label',
+    `Vote split: ${Math.round(blessShare)} percent blessed, ${Math.round(
+      100 - blessShare
+    )} percent damned. Purgatory band is plus or minus ${Math.round((bandWidth / 2) * 10) / 10} percentage points from center.`
+  );
+  meter.style.setProperty('--bless-share', `${blessShare}%`);
+  meter.style.setProperty('--band-start', `${bandStart}%`);
+  meter.style.setProperty('--band-width', `${bandWidth}%`);
+  meter.innerHTML = '<span class="feed-vote-meter-bless"></span><span class="feed-vote-meter-band"></span>';
+
+  return meter;
+}
+
+function voteTotalLabel(idea) {
+  const total = (idea.votes?.bless ?? 0) + (idea.votes?.damn ?? 0);
+  const label = document.createElement('span');
+  label.className = 'feed-vote-total';
+  label.textContent = `${total} ${total === 1 ? 'vote' : 'votes'}`;
+  return label;
+}
+
 function renderComments(comments) {
   commentsList.textContent = '';
   if (!comments.length) {
@@ -252,9 +293,9 @@ function ideaCard(idea) {
 
   const votes = document.createElement('span');
   votes.className = 'feed-votes';
-  votes.append(voteButton('bless', idea.votes?.bless ?? 0), voteButton('damn', idea.votes?.damn ?? 0));
+  votes.append(voteButton('bless', idea.votes?.bless ?? 0), voteTotalLabel(idea), voteButton('damn', idea.votes?.damn ?? 0));
 
-  card.append(link, votes);
+  card.append(link, voteMeter(idea), votes);
   return card;
 }
 
@@ -264,6 +305,17 @@ function syncBoardIdeaVotes(idea) {
     const damnCount = card.querySelector('[data-vote-count="damn"]');
     if (blessCount) blessCount.textContent = idea.votes?.bless ?? 0;
     if (damnCount) damnCount.textContent = idea.votes?.damn ?? 0;
+
+    const meter = card.querySelector('.feed-vote-meter');
+    if (meter) {
+      meter.replaceWith(voteMeter(idea));
+    }
+
+    const totalLabel = card.querySelector('.feed-vote-total');
+    if (totalLabel) {
+      const total = (idea.votes?.bless ?? 0) + (idea.votes?.damn ?? 0);
+      totalLabel.textContent = `${total} ${total === 1 ? 'vote' : 'votes'}`;
+    }
   });
 }
 

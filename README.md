@@ -77,25 +77,28 @@ The `/ideas` board has three mutually exclusive columns:
 - Damned: the idea is meaningfully ahead on thumbs down.
 - Purgatory: the vote split is effectively tied.
 
-Purgatory does not use exact equality. Exact equality works for tiny vote counts, but it breaks down as vote totals grow. A split like `499` blessed and `501` damned is not exactly equal, but it is still basically undecided.
+Purgatory does not use exact equality. Exact equality works for tiny vote counts, but it breaks down as vote totals grow. A split like `499` blessed and `501` damned is not exactly equal, but it is still basically undecided. On the other hand, a single `1 / 0` vote should not immediately launch an idea out of Purgatory.
 
-To handle that, the board uses a small Region of Practical Equivalence, or ROPE:
+To handle that, the board uses a sample-size-aware Region of Practical Equivalence, or ROPE:
 
 ```js
-const purgatoryRopeThreshold = 0.10;
+const purgatoryMinimumVotes = 3;
+const purgatoryRopeFloor = 0.20;
 const voteMargin = totalVotes === 0 ? 0 : (blessCount - damnCount) / totalVotes;
 const voteDistance = Math.abs(voteMargin);
+const ropeThreshold =
+  totalVotes < purgatoryMinimumVotes ? Infinity : Math.max(purgatoryRopeFloor, 1 / Math.sqrt(totalVotes));
 ```
 
 Bucket rules:
 
-- Purgatory: `voteDistance <= 0.10`
-- Blessed: `voteMargin > 0.10`
-- Damned: `voteMargin < -0.10`
+- Purgatory: `voteDistance < ropeThreshold`
+- Blessed: `voteMargin >= ropeThreshold`
+- Damned: `voteMargin <= -ropeThreshold`
 
-That means a 50/50 split stays in Purgatory, as does a close 49.9/50.1 split. An idea has to clear a 10 percentage-point normalized margin before it leaves Purgatory for Blessed or Damned.
+That means ideas with fewer than 3 total votes always stay in Purgatory. After that, the Purgatory band shrinks smoothly as vote count grows, but it never gets narrower than a 20 percentage-point normalized margin. A 50/50 split stays in Purgatory, as does a close 49.9/50.1 split.
 
-The SQL implementation lives in `lib/store.mjs`. Purgatory is sorted by closest normalized vote distance first, then by total votes, then by publish date.
+The SQL implementation lives in `lib/store.mjs`. Purgatory is sorted by closest normalized vote distance first, then by total votes, then by publish date. Idea cards also render a compact vote meter: yellow shows the blessed share, red shows the damned share, and the translucent center band shows the current Purgatory range for that vote total.
 
 ## Prompts
 
