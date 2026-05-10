@@ -22,6 +22,23 @@ function hasActivity(activity) {
   );
 }
 
+function withoutVisitorId(record) {
+  if (!record || typeof record !== 'object') {
+    return record;
+  }
+
+  const { visitorId: _visitorId, ...publicRecord } = record;
+  return publicRecord;
+}
+
+function sanitizeAccountActivity(activity) {
+  return {
+    ...activity,
+    ideas: Array.isArray(activity?.ideas) ? activity.ideas.map(withoutVisitorId) : [],
+    comments: Array.isArray(activity?.comments) ? activity.comments.map(withoutVisitorId) : []
+  };
+}
+
 function privateJson(body) {
   return Response.json(body, { headers: PRIVATE_JSON_HEADERS });
 }
@@ -53,7 +70,7 @@ export async function GET() {
       mode: 'anonymous',
       user: null,
       claim: null,
-      activity
+      activity: sanitizeAccountActivity(activity)
     });
   }
 
@@ -82,6 +99,6 @@ export async function GET() {
       image: session.user.image || null
     },
     claim,
-    activity
+    activity: sanitizeAccountActivity(activity)
   });
 }
