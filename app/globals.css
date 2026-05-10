@@ -937,6 +937,143 @@ textarea::placeholder {
   line-height: 1.45;
 }
 
+.account-page {
+  width: min(1120px, calc(100vw - 32px));
+  min-height: calc(100dvh - var(--site-header-height));
+  display: grid;
+  gap: 22px;
+  align-content: start;
+  margin: 0 auto;
+  padding: 34px 0 56px;
+}
+
+.account-hero {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.account-avatar {
+  width: 72px;
+  height: 72px;
+  flex: 0 0 auto;
+  border: 2px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-avatar-fallback {
+  background:
+    radial-gradient(circle at 35% 30%, #fff8c7 0 18%, transparent 19%),
+    radial-gradient(circle at 62% 70%, #ff665c 0 28%, transparent 29%),
+    #ffd75d;
+}
+
+.account-hero h1 {
+  white-space: normal;
+}
+
+.account-hero p,
+.account-empty,
+.account-nudge p {
+  color: rgba(255, 255, 255, 0.68);
+  font-weight: 650;
+}
+
+.account-nudge,
+.account-claim,
+.account-section {
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.account-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.account-nudge div {
+  min-width: min(100%, 280px);
+  display: grid;
+  gap: 5px;
+}
+
+.account-nudge h2,
+.account-section h2 {
+  margin: 0;
+}
+
+.account-nudge a,
+.account-activity-link {
+  color: #fff8ef;
+  font-weight: 880;
+}
+
+.account-nudge a {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 215, 93, 0.4);
+  border-radius: 8px;
+  background: rgba(255, 215, 93, 0.13);
+  text-decoration: none;
+}
+
+.account-nudge a:hover,
+.account-activity-link:hover {
+  color: #ffd75d;
+}
+
+.account-grid,
+.account-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.account-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.account-grid .feed-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.88rem;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.account-vote-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.account-vote-label {
+  min-width: 72px;
+  font-weight: 900;
+}
+
+.account-vote-bless {
+  color: #ffd75d;
+}
+
+.account-vote-damn {
+  color: #ff8b81;
+}
+
 .verdict-grid {
   height: calc(100dvh - var(--site-header-height) - var(--post-verdict-height, 0px) - 18px);
   display: grid;
@@ -1222,6 +1359,39 @@ textarea::placeholder {
 
   .comment-form {
     grid-template-columns: 1fr;
+  }
+
+  .account-page {
+    width: min(100vw - 20px, 680px);
+    gap: 14px;
+    padding: 20px 0 34px;
+  }
+
+  .account-hero {
+    align-items: flex-start;
+  }
+
+  .account-avatar {
+    width: 58px;
+    height: 58px;
+  }
+
+  .account-nudge,
+  .account-claim,
+  .account-section {
+    padding: 14px;
+  }
+
+  .account-nudge a {
+    width: 100%;
+  }
+
+  .account-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-vote-card {
+    align-items: flex-start;
   }
 
   .verdict-grid {
