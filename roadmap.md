@@ -27,7 +27,7 @@ The product should stay playful, loud, and a little absurd. This is not a polish
 
 Resolved tooling and access:
 
-- Local development works with Node/npm and the existing Vite/Express setup.
+- Local development works with Node/npm and the existing Next.js setup.
 - The Codex in-app browser can open and inspect the local app at `http://localhost:5174/`.
 - GitHub CLI is authenticated as `sunshineo`, with access to the referenced `sunshineo/chore-points-app` repo.
 - Vercel CLI works through `npx vercel`.
@@ -50,7 +50,7 @@ Current database state:
 
 - The app already uses Postgres via `pg` and requires `DATABASE_URL` for community features.
 - `lib/store.mjs` creates the current `ideas`, `votes`, and `comments` tables with `CREATE TABLE IF NOT EXISTS`.
-- `lib/ideas-api.mjs` exposes the shared publish, list, vote, and comment handlers used by both local Express and Vercel serverless routes.
+- `lib/ideas-api.mjs` exposes the shared publish, list, vote, and comment handlers used by the Next route handlers.
 - A Neon project named `idea-purgatory` is still the intended production database direction if `DATABASE_URL` points there, but future agents should not assume persistence is missing.
 - Use local development storage that does not require committing secrets. A local `.env` can point at a Neon dev database, but `.env` files must remain uncommitted.
 - The generated `.neon` context file is local CLI state and should not be committed unless there is an explicit decision to make repo-local Neon context part of the project.
@@ -67,7 +67,7 @@ Current behavior:
 
 - User submits a startup idea.
 - `src/main.js` posts `{ idea }` to `/api/judge`.
-- `lib/judge.mjs` validates the input, runs the startup-idea classifier, then streams angel and devil LLM responses.
+- `app/api/judge/route.js` uses `lib/judge.mjs` to validate the input, run the startup-idea classifier, then stream angel and devil LLM responses.
 - The browser renders streamed markdown with `marked` and sanitizes it with `DOMPurify`.
 - After the stream completes, the user can launch the judged idea as a public post through `POST /api/ideas`.
 - Public ideas have reloadable pages, bless/damn voting, flat comments, and `/ideas` board columns for Blessed, Purgatory, and Damned.
@@ -96,8 +96,7 @@ Important current implementation details:
 
 - `lib/store.mjs` owns schema creation and SQL queries.
 - `lib/ideas-api.mjs` owns request parsing, payload validation, cookie-based visitor identity, and JSON responses.
-- `server.mjs` wires the local Express routes.
-- `api/ideas.js`, `api/ideas/[id].js`, `api/ideas/[id]/votes.js`, and `api/ideas/[id]/comments.js` wire the Vercel serverless routes.
+- `app/api/ideas/route.js`, `app/api/ideas/[id]/route.js`, `app/api/ideas/[id]/votes/route.js`, and `app/api/ideas/[id]/comments/route.js` wire the Next route handlers.
 
 ## Phase 2: Traffic, Moderation, and Activity Quality
 

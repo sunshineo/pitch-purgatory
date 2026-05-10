@@ -1,6 +1,6 @@
 # Idea Purgatory
 
-Idea Purgatory is a small Vite app for tossing a startup idea into a playful angel/devil tribunal. The app streams two LLM critiques: an optimistic angel take and a skeptical devil take. Published ideas can be browsed on a public board with Blessed, Purgatory, and Damned columns driven by community thumbs-up/thumbs-down votes.
+Idea Purgatory is a small Next.js app for tossing a startup idea into a playful angel/devil tribunal. The app streams two LLM critiques: an optimistic angel take and a skeptical devil take. Published ideas can be browsed on a public board with Blessed, Purgatory, and Damned columns driven by community thumbs-up/thumbs-down votes.
 
 The tone is intentionally light, funny, and animated. This is not meant to feel like a polished enterprise SaaS dashboard.
 
@@ -12,15 +12,16 @@ The tone is intentionally light, funny, and animated. This is not meant to feel 
 - Community voting and comments.
 - Public `/ideas` board with mutually exclusive vote buckets.
 - Seeded board activity cron for slow anonymous traffic simulation.
-- Shared API logic for local Express and Vercel serverless deployment.
+- Next.js App Router pages and Route Handlers for the UI and API.
 
 ## Tech Stack
 
-- Vite frontend in `src/` and `index.html`.
-- Express local API in `server.mjs`.
-- Vercel serverless API handlers in `api/`.
+- Next.js App Router in `app/`.
+- Vanilla browser interaction code in `src/main.js`, mounted by `app/PurgatoryApp.jsx`.
+- API Route Handlers in `app/api/`.
 - Shared judge, validation, prompt loading, OpenAI streaming, and SSE helpers in `lib/judge.mjs`.
 - Community idea storage and vote bucketing in `lib/store.mjs`.
+- Express-style community handler adapter in `lib/next-handler-adapter.mjs`.
 - Markdown rendering via `marked` plus `DOMPurify`.
 - PostgreSQL via `pg`.
 
@@ -28,23 +29,19 @@ The tone is intentionally light, funny, and animated. This is not meant to feel 
 
 ```sh
 npm run dev
-npm run dev:api
-npm run dev:web
 npm run seed:backfill-evaluations
 npm run seed:once
 npm run build
 npm start
 ```
 
-- `npm run dev` starts both the local Express API and Vite.
-- `npm run dev:api` starts only the API, defaulting to `http://localhost:8787`.
-- `npm run dev:web` starts only the Vite frontend, defaulting to `http://localhost:5173` unless the port is taken.
+- `npm run dev` starts Next.js, defaulting to `http://localhost:3000`.
 - `npm run seed:backfill-evaluations` creates missing cron-only vote bucket evaluations for published ideas.
 - `npm run seed:once` runs one seeded board activity pass from this machine.
-- `npm run build` builds the frontend into `dist/`.
-- `npm start` serves the built app through Express.
+- `npm run build` builds the Next.js app.
+- `npm start` serves the production Next.js app.
 
-Run `npm run build` after frontend, shared API, package, Vite, or Vercel config changes.
+Run `npm run build` after frontend, shared API, package, Next.js, or Vercel config changes.
 
 ## Environment
 
@@ -61,7 +58,6 @@ Optional:
 LLM_MODEL=gpt-4o-mini
 LLM_API_URL=https://api.openai.com/v1/responses
 MAX_OUTPUT_TOKENS=800
-PORT=8787
 SEED_BOARD_ENABLED=true
 SEED_IDEA_PROBABILITY=0.0520833333
 SEED_MAX_IDEAS_PER_DAY=4
@@ -71,11 +67,11 @@ Do not commit `.env` files or secrets. Keep all LLM calls server-side and be car
 
 ## Architecture
 
-The frontend posts ideas to `/api/judge` and reads a `text/event-stream` response. In development, Vite proxies `/api` to the local Express server on port `8787`.
+The frontend posts ideas to `/api/judge` and reads a `text/event-stream` response from a Next.js Route Handler.
 
-`server.mjs` and `api/judge.js` both use the same shared logic from `lib/judge.mjs`. That shared module validates the idea, loads `prompts/angel.md` and `prompts/devil.md`, calls the OpenAI Responses API, and parses streamed SSE output.
+`app/api/judge/route.js` uses the shared logic from `lib/judge.mjs`. That shared module validates the idea, loads `prompts/angel.md` and `prompts/devil.md`, calls the OpenAI Responses API, and parses streamed SSE output.
 
-Published ideas and community interactions use `lib/store.mjs` through `lib/ideas-api.mjs`. The local Express routes and Vercel serverless handlers intentionally share that same API layer.
+Published ideas and community interactions use `lib/store.mjs` through `lib/ideas-api.mjs`. The Next route handlers call that shared API layer through `lib/next-handler-adapter.mjs`.
 
 Seeded board activity lives in `cron/`. Run one pass locally with `npm run seed:once`. It randomly publishes from the 200-item seed bank in `cron/seed-data.mjs` at about 2-3 ideas per day when scheduled every 30 minutes, casts 0-10 random votes, and asks the LLM for 0-2 short idea-specific comments. Those writes go through the same app storage functions as normal anonymous activity.
 
@@ -165,4 +161,4 @@ The app expects each response to stay under 500 words.
 
 ## Deployment
 
-`vercel.json` configures Vite output from `dist/` and sets `api/judge.js` max duration to 60 seconds. Seeded board activity is expected to run locally from this Mac. If API behavior changes, verify that local Express and Vercel serverless behavior still match.
+`vercel.json` identifies the project as a Next.js app. `app/api/judge/route.js` exports a 60-second max duration for the streaming LLM endpoint. Seeded board activity is expected to run locally from this Mac. If API behavior changes, verify the relevant Next route handler and shared library behavior.

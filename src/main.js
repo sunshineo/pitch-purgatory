@@ -1,4 +1,3 @@
-import './styles.css';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 
