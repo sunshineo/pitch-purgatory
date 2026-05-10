@@ -11,10 +11,12 @@
     "start": "next start"
   },
   "dependencies": {
+    "@auth/pg-adapter": "^1.11.2",
     "dompurify": "^3.4.2",
     "dotenv": "^17.2.3",
     "marked": "^18.0.3",
     "next": "^16.2.6",
+    "next-auth": "^4.24.14",
     "pg": "^8.20.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
