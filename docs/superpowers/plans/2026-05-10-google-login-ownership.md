@@ -38,6 +38,29 @@
 - Google OpenID Connect profile fields include `name` and `picture` when `profile` scope is available, but fields are not guaranteed: https://developers.google.com/identity/openid-connect/openid-connect
 - Google One Tap rendering is controlled by Google/browser UX and must not be covered: https://developers.google.com/identity/gsi/web/guides/display-google-one-tap
 
+## External Setup Status
+
+Google Cloud setup is complete for this implementation.
+
+- Google Cloud project: `idea-purgatory`
+- OAuth app name: `Pitch Purgatory`
+- OAuth audience: External
+- OAuth client type: Web application
+- OAuth client name: `Pitch Purgatory web`
+- Authorized JavaScript origins:
+  - `http://localhost:3000`
+  - `https://idea-purgatory.vercel.app`
+- Authorized redirect URIs:
+  - `http://localhost:3000/api/auth/callback/google`
+  - `https://idea-purgatory.vercel.app/api/auth/callback/google`
+- Local `.env` contains the required Auth.js/Google variables:
+  - `AUTH_GOOGLE_ID`
+  - `AUTH_GOOGLE_SECRET`
+  - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
+  - `AUTH_SECRET`
+
+Do not commit `.env` or copy the secret values into docs, plans, commits, prompts, or chat. Implementation workers should read these values from the local environment. If production login needs to work after implementation, copy the same values into Vercel project environment variables outside git.
+
 ---
 
 ### Task 1: Dependencies And Shared Database Pool
@@ -208,7 +231,9 @@ export async function signOutOfGoogle() {
 }
 ```
 
-- [ ] **Step 4: Document required auth environment variables**
+- [ ] **Step 4: Confirm and document required auth environment variables**
+
+The Google OAuth client has already been created in the `idea-purgatory` Google Cloud project, and the local `.env` file already contains the required keys. Do not overwrite existing values with placeholders.
 
 Add this section to `README.md` under environment variables:
 
@@ -254,6 +279,8 @@ If Auth.js requires provider env vars at build time, set local dummy values for 
 ```bash
 AUTH_SECRET=testsecret AUTH_GOOGLE_ID=testid AUTH_GOOGLE_SECRET=testsecret NEXT_PUBLIC_GOOGLE_CLIENT_ID=testid npm run build
 ```
+
+When running locally after this setup, prefer loading the real values from `.env` instead of dummy values.
 
 - [ ] **Step 6: Commit**
 
