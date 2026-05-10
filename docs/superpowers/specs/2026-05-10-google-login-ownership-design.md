@@ -22,6 +22,8 @@ In scope:
 - Header bar across all pages with app navigation, breadcrumbs where useful, `/account`, and auth controls.
 - `/account` page for both anonymous and signed-in visitors.
 - Hybrid vote identity: anonymous votes are per browser session; signed-in votes are per Google account.
+- Google display names and profile pictures for signed-in/claimed content.
+- Google One Tap as a sign-in enhancement on signed-out pages, with the normal header sign-in button as the fallback.
 
 Out of scope:
 
@@ -42,6 +44,8 @@ On first Google account creation, the server claims the current browser session.
 
 After that one-time claim, the account cannot claim anonymous rows from other browsers. If the same Google user signs in later from another browser, that browser's anonymous session is cleared or rotated so its previous anonymous activity stays anonymous.
 
+Signed-in public identity uses the Google profile display name and profile picture. If Google does not provide a name, use the email prefix or `Claimed founder`; never show the full email publicly. If Google does not provide a profile picture, show an app-styled placeholder avatar.
+
 ## Data Model
 
 Add Auth.js tables in Postgres:
@@ -55,6 +59,8 @@ Extend `users` with claim tracking fields:
 
 - `initial_visitor_claimed_at timestamptz`
 - `initial_visitor_id text`
+
+Use the Auth.js user image field for the Google profile picture URL and the Auth.js user name field for the Google display name.
 
 Extend `ideas`:
 
@@ -86,6 +92,7 @@ New or changed pieces:
 
 - `lib/auth.mjs`: Auth.js configuration, Google provider, Postgres adapter, and callbacks.
 - `app/api/auth/[...nextauth]/route.js`: Auth.js route handler.
+- Google Identity Services client integration: render Google One Tap for signed-out visitors where appropriate.
 - `lib/store.mjs`: schema additions and ownership queries.
 - `lib/ideas-api.mjs`: resolve visitor identity plus optional signed-in user, then pass ownership data to store operations.
 - Account page route: render signed-in account data by `owner_user_id` or anonymous account data by `visitor_id`.
@@ -110,7 +117,7 @@ First Google login:
 4. Server claims rows matching the current `pp_visitor`.
 5. Claimed ideas and comments switch public display names to the Google profile name.
 6. Claimed votes become account votes by setting `owner_user_id`.
-7. `/account` shows owned ideas, comments, and votes.
+7. `/account` shows owned ideas, comments, votes, display name, and avatar.
 8. Show a claim summary such as "Claimed 3 pitches, 5 heckles, and 12 votes from this browser" when at least one row is claimed.
 
 Later Google login from another browser:
@@ -130,12 +137,12 @@ Sign-out:
 Publishing:
 
 - Anonymous publish records `visitor_id`, `owner_user_id = null`, and `author_display_name = "Anonymous founder"`.
-- Signed-in publish records `visitor_id`, `owner_user_id = user.id`, and `author_display_name = user.name`.
+- Signed-in publish records `visitor_id`, `owner_user_id = user.id`, and `author_display_name = user.name` with a safe non-email fallback.
 
 Commenting:
 
 - Anonymous comment records `visitor_id`, `owner_user_id = null`, and `author_display_name = "Anonymous heckler"`.
-- Signed-in comment records `visitor_id`, `owner_user_id = user.id`, and `author_display_name = user.name`.
+- Signed-in comment records `visitor_id`, `owner_user_id = user.id`, and `author_display_name = user.name` with a safe non-email fallback.
 
 Voting:
 
@@ -160,6 +167,7 @@ Add a header bar across all app pages:
 - Auth control appears in the header:
   - signed out: "Sign in with Google"
   - signed in: profile pill with Google name/image when available, plus sign out
+- Signed-out pages can also show Google One Tap. The prompt is controlled by Google/browser UX and must not be covered, obscured, or treated as the only sign-in path.
 
 Anonymous `/account`:
 
@@ -174,6 +182,12 @@ Signed-in `/account`:
 - Sections for owned ideas, comments, and votes.
 - No edit or delete actions.
 - First-login claim summary when at least one row was claimed.
+
+Public author presentation:
+
+- Claimed/signed-in ideas and comments show the Google display name and avatar.
+- The full Google email is not shown publicly.
+- Missing avatars render an app-styled fallback.
 
 The header and account page will keep the product voice playful and light. They must not look like a corporate SaaS admin area.
 
