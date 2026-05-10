@@ -47,5 +47,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         expires: session.expires
       };
     }
-  }
+  },
+  trustHost: true
 });
