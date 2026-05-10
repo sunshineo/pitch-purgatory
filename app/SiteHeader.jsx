@@ -4,7 +4,14 @@ import GoogleOneTap from './GoogleOneTap.jsx';
 import HeaderBreadcrumbs from './HeaderBreadcrumbs.jsx';
 
 export default async function SiteHeader() {
-  const session = await auth();
+  let session = null;
+
+  try {
+    session = await auth();
+  } catch {
+    session = null;
+  }
+
   const user = session?.user || null;
 
   return (
