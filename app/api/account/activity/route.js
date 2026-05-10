@@ -4,8 +4,26 @@ import { cookies } from 'next/headers';
 import { auth, displayNameForUser } from '../../../../auth.js';
 import { claimInitialVisitorForUser, getAccountActivity } from '../../../../lib/store.mjs';
 
+export const dynamic = 'force-dynamic';
+
+const PRIVATE_JSON_HEADERS = {
+  'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0'
+};
+
 function validVisitorId(value) {
   return typeof value === 'string' && /^[a-f0-9-]{36}$/i.test(value);
+}
+
+function hasActivity(activity) {
+  return Boolean(
+    activity?.ideas?.length || activity?.comments?.length || activity?.votes?.length
+  );
+}
+
+function privateJson(body) {
+  return Response.json(body, { headers: PRIVATE_JSON_HEADERS });
 }
 
 function visitorCookie(value) {
@@ -31,9 +49,8 @@ export async function GET() {
 
   if (!session?.user?.id) {
     const activity = await getAccountActivity({ visitorId });
-    return Response.json({
+    return privateJson({
       mode: 'anonymous',
-      visitorId,
       user: null,
       claim: null,
       activity
@@ -47,14 +64,18 @@ export async function GET() {
     displayName
   });
 
-  if (!claim.claimed) {
+  if (claim.claimed) {
     cookieStore.set(visitorCookie(randomUUID()));
+  } else {
+    const anonymousActivity = await getAccountActivity({ visitorId });
+    if (hasActivity(anonymousActivity)) {
+      cookieStore.set(visitorCookie(randomUUID()));
+    }
   }
 
   const activity = await getAccountActivity({ ownerUserId: session.user.id });
-  return Response.json({
+  return privateJson({
     mode: 'signed-in',
-    visitorId,
     user: {
       id: session.user.id,
       name: displayName,
