@@ -58,8 +58,12 @@ Google Cloud setup is complete for this implementation.
   - `AUTH_GOOGLE_SECRET`
   - `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
   - `AUTH_SECRET`
+- Vercel project `idea-purgatory` contains the same variables for:
+  - Production
+  - Development
+  - Preview branch `codex/migrate-nextjs`
 
-Do not commit `.env` or copy the secret values into docs, plans, commits, prompts, or chat. Implementation workers should read these values from the local environment. If production login needs to work after implementation, copy the same values into Vercel project environment variables outside git.
+Do not commit `.env` or copy the secret values into docs, plans, commits, prompts, or chat. Implementation workers should read these values from the local environment. Production login has the required Vercel project environment variables already; if work moves to another preview branch, add the same four variables for that branch or rely on a production deployment for OAuth testing.
 
 ---
 
