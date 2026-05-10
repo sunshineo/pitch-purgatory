@@ -60,7 +60,7 @@ Google OAuth redirect URIs:
 
 ```text
 Local: http://localhost:3000/api/auth/callback/google
-Production: https://<your-production-domain>/api/auth/callback/google
+Production: https://idea-purgatory.vercel.app/api/auth/callback/google
 ```
 
 Optional:
