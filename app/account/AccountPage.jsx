@@ -1,5 +1,6 @@
 'use client';
 
+import { signIn } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 
 function ActivityLink({ href, children }) {
@@ -109,7 +110,25 @@ export default function AccountPage() {
             <h2>Make it permanent</h2>
             <p>Sign in with Google to claim this chaos before the browser forgets.</p>
           </div>
-          <a href="/api/auth/signin/google?callbackUrl=/account">Sign in with Google</a>
+          <button
+            className="account-activity-link"
+            type="button"
+            onClick={() => signIn('google', { callbackUrl: '/account' })}
+            style={{
+              minHeight: '40px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '0 14px',
+              border: '1px solid rgba(255, 215, 93, 0.4)',
+              borderRadius: '8px',
+              background: 'rgba(255, 215, 93, 0.13)',
+              textDecoration: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Sign in with Google
+          </button>
         </section>
       ) : null}
 
