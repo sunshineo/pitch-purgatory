@@ -1,4 +1,5 @@
 import './globals.css';
+import SiteHeader from './SiteHeader.jsx';
 
 export const metadata = {
   title: 'Angel / Devil Idea Judge',
@@ -8,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <SiteHeader />
+        {children}
+      </body>
     </html>
   );
 }
