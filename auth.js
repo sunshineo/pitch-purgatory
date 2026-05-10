@@ -37,6 +37,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     })
   ],
   callbacks: {
+    signIn({ account, profile }) {
+      if (account?.provider !== 'google') return true;
+      return profile?.email_verified === true || profile?.email_verified === 'true';
+    },
     session({ session, user }) {
       return {
         user: {

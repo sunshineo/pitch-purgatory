@@ -11,6 +11,7 @@ const PRIVATE_JSON_HEADERS = {
   Pragma: 'no-cache',
   Expires: '0'
 };
+const claimSummaryCookieName = 'pp_claim_summary';
 
 function validVisitorId(value) {
   return typeof value === 'string' && /^[a-f0-9-]{36}$/i.test(value);
@@ -22,20 +23,24 @@ function hasActivity(activity) {
   );
 }
 
-function withoutVisitorId(record) {
+function withoutPrivateIds(record) {
   if (!record || typeof record !== 'object') {
     return record;
   }
 
-  const { visitorId: _visitorId, ...publicRecord } = record;
+  const {
+    ownerUserId: _ownerUserId,
+    visitorId: _visitorId,
+    ...publicRecord
+  } = record;
   return publicRecord;
 }
 
 function sanitizeAccountActivity(activity) {
   return {
     ...activity,
-    ideas: Array.isArray(activity?.ideas) ? activity.ideas.map(withoutVisitorId) : [],
-    comments: Array.isArray(activity?.comments) ? activity.comments.map(withoutVisitorId) : []
+    ideas: Array.isArray(activity?.ideas) ? activity.ideas.map(withoutPrivateIds) : [],
+    comments: Array.isArray(activity?.comments) ? activity.comments.map(withoutPrivateIds) : []
   };
 }
 
@@ -52,6 +57,35 @@ function visitorCookie(value) {
     path: '/',
     maxAge: 31536000
   };
+}
+
+function expireClaimSummaryCookie() {
+  return {
+    name: claimSummaryCookieName,
+    value: '',
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 0
+  };
+}
+
+function claimFromSummaryCookie(value) {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    return {
+      claimed: true,
+      ideas: Number(parsed.ideas || 0),
+      comments: Number(parsed.comments || 0),
+      votes: Number(parsed.votes || 0)
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function GET() {
@@ -80,13 +114,21 @@ export async function GET() {
     visitorId,
     displayName
   });
+  let responseClaim = claim;
 
   if (claim.claimed) {
     cookieStore.set(visitorCookie(randomUUID()));
   } else {
-    const anonymousActivity = await getAccountActivity({ visitorId });
-    if (hasActivity(anonymousActivity)) {
-      cookieStore.set(visitorCookie(randomUUID()));
+    const summaryClaim = claimFromSummaryCookie(cookieStore.get(claimSummaryCookieName)?.value);
+    if (summaryClaim) {
+      responseClaim = summaryClaim;
+      cookieStore.set(expireClaimSummaryCookie());
+    } else {
+      cookieStore.set(expireClaimSummaryCookie());
+      const anonymousActivity = await getAccountActivity({ visitorId });
+      if (hasActivity(anonymousActivity)) {
+        cookieStore.set(visitorCookie(randomUUID()));
+      }
     }
   }
 
@@ -94,11 +136,10 @@ export async function GET() {
   return privateJson({
     mode: 'signed-in',
     user: {
-      id: session.user.id,
       name: displayName,
       image: session.user.image || null
     },
-    claim,
+    claim: responseClaim,
     activity: sanitizeAccountActivity(activity)
   });
 }

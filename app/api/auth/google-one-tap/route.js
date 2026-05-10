@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 
+import { displayNameForUser } from '../../../../auth.js';
 import { getPool } from '../../../../lib/db.mjs';
+import { claimInitialVisitorForUser, ensureSchema } from '../../../../lib/store.mjs';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -10,6 +12,10 @@ const sessionMaxAgeMs = 30 * 24 * 60 * 60 * 1000;
 const maxCredentialLength = 10000;
 const googleTokenInfoUrl = 'https://oauth2.googleapis.com/tokeninfo';
 const allowedIssuers = new Set(['accounts.google.com', 'https://accounts.google.com']);
+const visitorCookieName = 'pp_visitor';
+const claimSummaryCookieName = 'pp_claim_summary';
+const visitorMaxAge = 31536000;
+const claimSummaryMaxAge = 300;
 
 function jsonResponse(body, status = 200) {
   return NextResponse.json(body, {
@@ -35,6 +41,10 @@ function isEmailVerified(value) {
   return value === true || value === 'true';
 }
 
+function validVisitorId(value) {
+  return typeof value === 'string' && /^[a-f0-9-]{36}$/i.test(value);
+}
+
 function isSecureRequest(request) {
   const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
   if (forwardedProto) return forwardedProto === 'https';
@@ -43,6 +53,40 @@ function isSecureRequest(request) {
 
 function sessionCookieName(request) {
   return isSecureRequest(request) ? '__Secure-authjs.session-token' : 'authjs.session-token';
+}
+
+function encodeClaimSummary(claim) {
+  const summary = {
+    ideas: Number(claim.ideas || 0),
+    comments: Number(claim.comments || 0),
+    votes: Number(claim.votes || 0)
+  };
+
+  return Buffer.from(JSON.stringify(summary), 'utf8').toString('base64url');
+}
+
+function setClaimCookies(response, request, claim) {
+  const secure = isSecureRequest(request);
+
+  response.cookies.set({
+    name: visitorCookieName,
+    value: randomUUID(),
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure,
+    maxAge: visitorMaxAge
+  });
+
+  response.cookies.set({
+    name: claimSummaryCookieName,
+    value: encodeClaimSummary(claim),
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure,
+    maxAge: claimSummaryMaxAge
+  });
 }
 
 async function verifyGoogleCredential(credential, clientId) {
@@ -185,8 +229,13 @@ async function upsertAuthSession(profile) {
       [randomUUID(), userId, expires, sessionToken]
     );
 
+    const userResult = await client.query(
+      'SELECT id, name, email, image FROM users WHERE id = $1 LIMIT 1',
+      [userId]
+    );
+
     await client.query('COMMIT');
-    return { sessionToken, expires };
+    return { sessionToken, expires, user: userResult.rows[0] };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -214,8 +263,9 @@ export async function POST(request) {
   }
 
   try {
+    await ensureSchema();
     const profile = await verifyGoogleCredential(credential, clientId);
-    const { sessionToken, expires } = await upsertAuthSession(profile);
+    const { sessionToken, expires, user } = await upsertAuthSession(profile);
     const response = jsonResponse({ ok: true });
     const secure = isSecureRequest(request);
 
@@ -228,6 +278,19 @@ export async function POST(request) {
       secure,
       expires
     });
+
+    const visitorId = request.cookies.get(visitorCookieName)?.value;
+    if (user?.id && validVisitorId(visitorId)) {
+      const claim = await claimInitialVisitorForUser({
+        userId: user.id,
+        visitorId,
+        displayName: displayNameForUser(user)
+      });
+
+      if (claim.claimed) {
+        setClaimCookies(response, request, claim);
+      }
+    }
 
     return response;
   } catch {
