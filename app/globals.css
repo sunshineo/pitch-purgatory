@@ -291,8 +291,8 @@ h1 {
 }
 
 .feed-card .feed-votes {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 14px;
   align-items: center;
   margin-top: 0;
@@ -341,7 +341,10 @@ h1 {
 }
 
 .feed-card .feed-vote-total {
-  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
   overflow: visible;
   color: rgba(255, 255, 255, 0.58);
   font-size: 0.72rem;
@@ -374,6 +377,14 @@ h1 {
     transform 140ms ease;
   -webkit-box-orient: initial;
   -webkit-line-clamp: initial;
+}
+
+.feed-card .feed-vote-bless {
+  justify-self: start;
+}
+
+.feed-card .feed-vote-damn {
+  justify-self: end;
 }
 
 .feed-card .feed-vote:hover {
