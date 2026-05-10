@@ -18,6 +18,8 @@ const browseIdeasLink = document.querySelector('#browse-ideas-link');
 const blessedFeedList = document.querySelector('#blessed-feed-list');
 const purgatoryFeedList = document.querySelector('#purgatory-feed-list');
 const damnedFeedList = document.querySelector('#damned-feed-list');
+const publicAuthorAvatar = document.querySelector('#public-author-avatar');
+const publicAuthorName = document.querySelector('#public-author-name');
 const publicIdeaMeta = document.querySelector('#public-idea-meta');
 const publicIdeaText = document.querySelector('#public-idea-text');
 const publicAngelOutput = document.querySelector('#public-angel-output');
@@ -170,18 +172,40 @@ function renderVoteState(idea) {
   damnVoteButton.classList.toggle('is-selected', idea.viewerVote === 'damn');
 }
 
+function renderAvatar(target, imageUrl, label) {
+  target.textContent = '';
+  target.className = 'author-avatar';
+
+  if (!imageUrl) {
+    target.classList.add('author-avatar-fallback');
+    target.setAttribute('aria-hidden', 'true');
+    return;
+  }
+
+  target.removeAttribute('aria-hidden');
+  const image = document.createElement('img');
+  image.src = imageUrl;
+  image.alt = label ? `${label} avatar` : '';
+  image.referrerPolicy = 'no-referrer';
+  target.append(image);
+}
+
 function commentNode(comment) {
   const item = document.createElement('article');
   item.className = `comment-card comment-${comment.stance}`;
+  const authorName = comment.authorDisplayName || 'Anonymous founder';
+
+  const avatar = document.createElement('span');
+  renderAvatar(avatar, comment.authorImage, authorName);
 
   const meta = document.createElement('p');
   meta.className = 'comment-meta';
-  meta.textContent = `${comment.authorDisplayName} - ${new Date(comment.createdAt).toLocaleString()}`;
+  meta.textContent = `${authorName} - ${new Date(comment.createdAt).toLocaleString()}`;
 
   const body = document.createElement('p');
   body.textContent = comment.body;
 
-  item.append(meta, body);
+  item.append(avatar, meta, body);
   return item;
 }
 
@@ -273,6 +297,9 @@ function renderPublicIdea(idea) {
   setVerdictMode(false);
   currentPublicIdea = idea;
   document.title = 'Idea Purgatory';
+  const authorName = idea.authorDisplayName || 'Anonymous founder';
+  publicAuthorName.textContent = authorName;
+  renderAvatar(publicAuthorAvatar, idea.authorImage, authorName);
   publicIdeaMeta.textContent = new Date(idea.publishedAt).toLocaleDateString();
   publicIdeaText.textContent = idea.ideaText;
   publicAngelOutput.innerHTML = renderMarkdown(idea.angelMarkdown);

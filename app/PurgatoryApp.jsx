@@ -78,8 +78,11 @@ export default function PurgatoryApp() {
         <article className="public-idea">
           <section className="public-post">
             <div className="public-post-meta">
-              <strong>Anonymous founder</strong>
-              <span id="public-idea-meta">Freshly launched from purgatory</span>
+              <span id="public-author-avatar" className="author-avatar author-avatar-fallback" aria-hidden="true" />
+              <span>
+                <strong id="public-author-name">Anonymous founder</strong>
+                <span id="public-idea-meta">Freshly launched from purgatory</span>
+              </span>
             </div>
             <p id="public-idea-text" />
           </section>
