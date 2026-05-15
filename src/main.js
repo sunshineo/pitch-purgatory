@@ -1,5 +1,6 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import { boardPageSize, createBoardAutoLoadObserver, hasMoreBoardIdeas } from './board-infinite-scroll.js';
 
 const form = document.querySelector('#idea-form');
 const input = document.querySelector('#idea-input');
@@ -50,7 +51,7 @@ const placeholders = {
 
 const purgatoryMinimumVotes = 3;
 const purgatoryRopeFloor = 0.2;
-const boardPageSize = 50;
+const boardLoadObservers = new WeakMap();
 
 function setLoading(isLoading) {
   document.body.classList.toggle('is-streaming', isLoading);
@@ -353,19 +354,48 @@ function syncBoardIdeaVotes(idea) {
   });
 }
 
-function renderLoadMoreButton(target, sort, nextOffset) {
+function disconnectLoadMoreControl(target) {
+  const existing = target.querySelector('.feed-load-more');
+  if (!existing) return;
+
+  boardLoadObservers.get(existing)?.disconnect();
+  boardLoadObservers.delete(existing);
+  existing.remove();
+}
+
+function loadNextBoardPage(control, target, sort, nextOffset) {
+  if (control.disabled) return;
+
+  control.disabled = true;
+  control.textContent = 'Summoning...';
+  loadBoardColumn(target, sort, '', { append: true, offset: nextOffset });
+}
+
+function renderLoadMoreControl(target, sort, nextOffset) {
   const button = document.createElement('button');
   button.className = 'feed-load-more';
   button.type = 'button';
-  button.textContent = 'Summon more';
+  button.setAttribute('aria-live', 'polite');
+  button.textContent = 'Summoning more when you reach the bottom';
   button.addEventListener('click', () => {
-    loadBoardColumn(target, sort, '', { append: true, offset: nextOffset });
+    loadNextBoardPage(button, target, sort, nextOffset);
   });
   target.append(button);
+
+  const observer = createBoardAutoLoadObserver({
+    sentinel: button,
+    onLoad: () => loadNextBoardPage(button, target, sort, nextOffset)
+  });
+
+  if (observer) {
+    boardLoadObservers.set(button, observer);
+  } else {
+    button.textContent = 'Summon more';
+  }
 }
 
 function renderBoardColumn(target, ideas, emptyText, { append = false, sort, offset = 0 } = {}) {
-  target.querySelector('.feed-load-more')?.remove();
+  disconnectLoadMoreControl(target);
 
   if (!append) {
     target.textContent = '';
@@ -380,8 +410,8 @@ function renderBoardColumn(target, ideas, emptyText, { append = false, sort, off
 
   target.append(...ideas.map(ideaCard));
 
-  if (ideas.length === boardPageSize) {
-    renderLoadMoreButton(target, sort, offset + ideas.length);
+  if (hasMoreBoardIdeas(ideas.length)) {
+    renderLoadMoreControl(target, sort, offset + ideas.length);
   }
 }
 

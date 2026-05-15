@@ -8,7 +8,8 @@
     "dev": "next dev --hostname 0.0.0.0",
     "seed:backfill-evaluations": "node cron/backfill-evaluations.mjs",
     "seed:once": "node cron/seed-board-once.mjs",
-    "start": "next start"
+    "start": "next start",
+    "test": "node --test"
   },
   "dependencies": {
     "@auth/pg-adapter": "^1.11.2",
