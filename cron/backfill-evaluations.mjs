@@ -1,29 +1,14 @@
 import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
-import { evaluateIdeaTraffic, randomTrafficBucket } from './evaluation.mjs';
-import { closeCronStore, listIdeasMissingEvaluations, upsertIdeaEvaluation } from './store.mjs';
-
-const limitArg = process.argv.find((arg) => arg.startsWith('--limit='));
-const limit = limitArg ? Number(limitArg.split('=')[1]) : 500;
+import { balanceIdeaEvaluations } from './seed-board.mjs';
+import { closeCronStore } from './store.mjs';
 
 function printHelp() {
-  console.log(`Usage: node cron/backfill-evaluations.mjs [--limit=500]
+  console.log(`Usage: node cron/backfill-evaluations.mjs
 
-Evaluates published ideas that do not yet have cron_idea_evaluations rows.
-If the LLM evaluator fails for an idea, stores a random fallback bucket.`);
-}
-
-async function evaluationForIdea(idea) {
-  try {
-    const evaluation = await evaluateIdeaTraffic(idea.ideaText);
-    return { ...evaluation, fallback: false };
-  } catch (error) {
-    return {
-      bucket: randomTrafficBucket(),
-      reason: `Fallback bucket: ${error.message || 'traffic evaluation failed'}`,
-      fallback: true
-    };
-  }
+Balances missing cron_idea_evaluations rows.
+Published ideas with no evaluation stay neutral/purgatory unless the batch ranker
+needs more blessed or damned traffic intents to approach a one-third split.`);
 }
 
 async function main() {
@@ -32,33 +17,17 @@ async function main() {
     return;
   }
 
-  const ideas = await listIdeasMissingEvaluations({ limit });
-  const results = [];
+  const actions = [];
+  const assignments = await balanceIdeaEvaluations(actions);
 
-  for (const idea of ideas) {
-    const evaluation = await evaluationForIdea(idea);
-    await upsertIdeaEvaluation({
-      ideaId: idea.id,
-      slug: idea.slug,
-      bucket: evaluation.bucket,
-      reason: evaluation.reason,
-      fallback: evaluation.fallback
-    });
-
-    const result = {
-      slug: idea.slug,
-      bucket: evaluation.bucket,
-      fallback: evaluation.fallback
-    };
-    results.push(result);
-    console.log(JSON.stringify(result));
+  for (const action of actions) {
+    console.log(JSON.stringify(action));
   }
 
   console.log(
     JSON.stringify({
       ok: true,
-      evaluated: results.length,
-      remainingLimit: limit
+      assigned: assignments.length
     })
   );
 }

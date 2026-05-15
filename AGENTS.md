@@ -13,7 +13,7 @@ The Next.js app lives in `app/`. The browser behavior still lives in `src/main.j
 ## Commands
 
 - `npm run dev`: start the Next.js app, defaulting to `http://localhost:3000`.
-- `npm run seed:backfill-evaluations`: create missing cron-only vote bucket evaluations for published ideas.
+- `npm run seed:backfill-evaluations`: balance cron-only vote intent evaluations for published ideas.
 - `npm run seed:once`: run one seeded board activity pass from the local machine.
 - `npm run build`: build the Next.js app.
 - `npm start`: serve the production Next.js app.
@@ -51,7 +51,7 @@ LLM calls cost real money. The API key is expected to have restricted permission
 - Seeded board activity is isolated under `cron/` and runnable from this Mac with `npm run seed:once`; use `launchd` `StartInterval` for repeated runs.
 - `cron/seed-data.mjs` contains 200 seed ideas plus comment authors. The cron may publish one seed idea after running the same validation, angel/devil judgment, and title summary pipeline as a normal user launch.
 - Each cron run casts 0-10 random votes and posts 0-2 LLM-written short comments on random existing ideas.
-- Cron vote shaping uses `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns one of five buckets; if evaluation fails, cron stores a random fallback bucket. Cron also targets underrepresented board columns when choosing vote candidates. Do not add these bucket fields to the public app schema.
+- Cron vote shaping uses `cron_idea_evaluations`, a cron-owned table keyed by idea ID. Stored rows are only `blessed` or `damned`; no row means neutral/purgatory and should receive roughly even seeded votes. Each run balances the hidden evaluation distribution toward one-third blessed, one-third damned, and one-third neutral by ranking currently neutral ideas together, assigning the top group to `blessed`, the bottom group to `damned`, and leaving the middle unassigned. If ranking fails, cron uses a random ranking fallback. Do not add these bucket fields to the public app schema.
 - `app/api/judge/route.js` intentionally shares the same judge logic from `lib/judge.mjs`.
 - `validateStartupIdea()` performs a small classifier call before streaming the angel/devil responses.
 - `streamVerdicts()` runs angel and devil LLM streams concurrently and emits chunks tagged with `side`.

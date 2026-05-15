@@ -6,9 +6,6 @@ const { Pool } = pg;
 let pool;
 let schemaReady;
 
-const purgatoryMinimumVotes = 3;
-const purgatoryRopeFloor = 0.2;
-
 function getPool() {
   if (pool) return pool;
 
@@ -43,11 +40,8 @@ async function ensureCronSchema() {
         slug text NOT NULL,
         bucket text NOT NULL CHECK (
           bucket IN (
-            'mostly_blessed',
-            'mildly_blessed',
-            'controversial',
-            'mildly_damned',
-            'mostly_damned'
+            'blessed',
+            'damned'
           )
         ),
         reason text NOT NULL DEFAULT '',
@@ -57,6 +51,16 @@ async function ensureCronSchema() {
       );
 
       CREATE INDEX IF NOT EXISTS cron_idea_evaluations_slug_idx ON cron_idea_evaluations (slug);
+
+      ALTER TABLE cron_idea_evaluations
+        DROP CONSTRAINT IF EXISTS cron_idea_evaluations_bucket_check;
+
+      DELETE FROM cron_idea_evaluations
+      WHERE bucket NOT IN ('blessed', 'damned');
+
+      ALTER TABLE cron_idea_evaluations
+        ADD CONSTRAINT cron_idea_evaluations_bucket_check
+        CHECK (bucket IN ('blessed', 'damned'));
     `);
   }
 
@@ -112,10 +116,32 @@ export async function listRandomIdeas({ limit = 5 } = {}) {
   }));
 }
 
-function boardSql() {
-  const totalVotesSql = 'COUNT(v.*)';
-  return `
-    WITH idea_votes AS (
+export async function getEvaluationDistribution() {
+  await ensureCronSchema();
+
+  const result = await getPool().query(`
+    SELECT
+      COALESCE(COUNT(e.*) FILTER (WHERE e.bucket = 'blessed'), 0)::int AS blessed,
+      COALESCE(COUNT(e.*) FILTER (WHERE e.bucket = 'damned'), 0)::int AS damned,
+      COALESCE(COUNT(i.*) FILTER (WHERE e.idea_id IS NULL), 0)::int AS neutral
+    FROM ideas i
+    LEFT JOIN cron_idea_evaluations e ON e.idea_id = i.id
+    WHERE i.status = 'published'
+  `);
+
+  return {
+    blessed: Number(result.rows[0]?.blessed || 0),
+    damned: Number(result.rows[0]?.damned || 0),
+    neutral: Number(result.rows[0]?.neutral || 0)
+  };
+}
+
+export async function listRandomVoteIdeas({ limit = 5 } = {}) {
+  await ensureCronSchema();
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 50);
+  const result = await getPool().query(
+    `
       SELECT
         i.id,
         i.slug,
@@ -124,95 +150,16 @@ function boardSql() {
         e.bucket,
         e.fallback,
         COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'bless'), 0)::int AS bless_count,
-        COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'damn'), 0)::int AS damn_count,
-        ${totalVotesSql}::int AS total_votes,
-        CASE
-          WHEN ${totalVotesSql} = 0 THEN 0
-          ELSE (
-            COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'bless'), 0)::float -
-            COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'damn'), 0)::float
-          ) / ${totalVotesSql}
-        END AS vote_margin,
-        CASE
-          WHEN ${totalVotesSql} = 0 THEN ${purgatoryMinimumVotes}
-          WHEN ${totalVotesSql} < ${purgatoryMinimumVotes} THEN 2
-          ELSE GREATEST(${purgatoryRopeFloor}, 1 / SQRT(${totalVotesSql}::float))
-        END AS rope_threshold
+        COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'damn'), 0)::int AS damn_count
       FROM ideas i
       LEFT JOIN votes v ON v.idea_id = i.id
       LEFT JOIN cron_idea_evaluations e ON e.idea_id = i.id
       WHERE i.status = 'published'
       GROUP BY i.id, e.bucket, e.fallback
-    )
-    SELECT *,
-      CASE
-        WHEN vote_margin >= rope_threshold THEN 'blessed'
-        WHEN vote_margin <= -rope_threshold THEN 'damned'
-        ELSE 'purgatory'
-      END AS board_bucket
-    FROM idea_votes
-  `;
-}
-
-export async function getBoardDistribution() {
-  await ensureCronSchema();
-
-  const result = await getPool().query(`
-    SELECT board_bucket, COUNT(*)::int AS count
-    FROM (${boardSql()}) board
-    GROUP BY board_bucket
-  `);
-
-  const counts = { blessed: 0, purgatory: 0, damned: 0 };
-  for (const row of result.rows) {
-    counts[row.board_bucket] = Number(row.count || 0);
-  }
-
-  return counts;
-}
-
-export async function listBalancedVoteIdeas({ limit = 5, target = 'purgatory' } = {}) {
-  await ensureCronSchema();
-
-  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 50);
-  const result = await getPool().query(
-    `
-      SELECT *
-      FROM (${boardSql()}) board
-      ORDER BY
-        CASE $2
-          WHEN 'damned' THEN
-            CASE COALESCE(bucket, 'missing')
-              WHEN 'mostly_damned' THEN 0
-              WHEN 'mildly_damned' THEN 1
-              WHEN 'controversial' THEN 2
-              WHEN 'missing' THEN 3
-              WHEN 'mildly_blessed' THEN 4
-              ELSE 5
-            END
-          WHEN 'blessed' THEN
-            CASE COALESCE(bucket, 'missing')
-              WHEN 'mostly_blessed' THEN 0
-              WHEN 'mildly_blessed' THEN 1
-              WHEN 'controversial' THEN 2
-              WHEN 'missing' THEN 3
-              WHEN 'mildly_damned' THEN 4
-              ELSE 5
-            END
-          ELSE
-            CASE COALESCE(bucket, 'missing')
-              WHEN 'controversial' THEN 0
-              WHEN 'missing' THEN 1
-              WHEN 'mildly_damned' THEN 2
-              WHEN 'mildly_blessed' THEN 3
-              ELSE 4
-            END
-        END,
-        CASE WHEN board_bucket = $2 THEN 1 ELSE 0 END,
-        random()
+      ORDER BY random()
       LIMIT $1
     `,
-    [safeLimit, target]
+    [safeLimit]
   );
 
   return result.rows.map((row) => ({
@@ -221,8 +168,7 @@ export async function listBalancedVoteIdeas({ limit = 5, target = 'purgatory' } 
     title: row.title,
     ideaText: row.idea_text,
     bucket: row.bucket || null,
-    fallback: row.fallback,
-    boardBucket: row.board_bucket,
+    fallback: Boolean(row.fallback),
     votes: {
       bless: Number(row.bless_count || 0),
       damn: Number(row.damn_count || 0)
@@ -251,10 +197,10 @@ export async function countIdeasCreatedSince({ source, since }) {
   return Number(result.rows[0]?.count || 0);
 }
 
-export async function listIdeasMissingEvaluations({ limit = 100 } = {}) {
+export async function listIdeasMissingEvaluations({ limit = 1000 } = {}) {
   await ensureCronSchema();
 
-  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const safeLimit = Math.min(Math.max(Number(limit) || 1000, 1), 1000);
   const result = await getPool().query(
     `
       SELECT i.id, i.slug, i.title, i.idea_text
@@ -274,22 +220,6 @@ export async function listIdeasMissingEvaluations({ limit = 100 } = {}) {
     title: row.title,
     ideaText: row.idea_text
   }));
-}
-
-export async function getIdeaEvaluation(ideaId) {
-  await ensureCronSchema();
-
-  const result = await getPool().query(
-    `
-      SELECT *
-      FROM cron_idea_evaluations
-      WHERE idea_id = $1
-      LIMIT 1
-    `,
-    [ideaId]
-  );
-
-  return result.rows[0] || null;
 }
 
 export async function upsertIdeaEvaluation({ ideaId, slug, bucket, reason = '', fallback = false }) {

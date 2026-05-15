@@ -108,7 +108,7 @@ Board activity model:
 - Prefer curated ideas and templated comments first so automation does not create unnecessary LLM spend.
 - Only use LLM generation for occasional high-quality seed posts or comments, behind strict per-day limits.
 - Current implementation has a 200-item seed bank and a local Mac runner that can run every 30 minutes. It averages 2-3 new seeded ideas per day, casts 0-10 random votes, and posts 0-2 short LLM-written comments per run.
-- Cron voting uses a stricter neutral LLM bucket stored in the cron-only `cron_idea_evaluations` table plus board-level targeting, so ideas can drift toward Blessed, Damned, or Purgatory instead of all converging to 50/50.
+- Cron voting uses a cron-only `cron_idea_evaluations` table for hidden traffic intent. Rows are only `blessed` or `damned`; missing rows stay neutral so the public board can settle into roughly Blessed, Damned, and Purgatory thirds over time.
 
 Automation work:
 
@@ -116,7 +116,7 @@ Automation work:
 - Kept all seeded activity implementation files under `cron/` so they stay separate from app/runtime code.
 - Added an `activity_runs` table so each run is auditable.
 - Added a local seed bank of funny startup ideas, bot display names, and vote patterns.
-- Each run chooses at most a few actions: maybe publish one seed idea, add 2 comments, and add 5 votes.
+- Each run chooses at most a few actions: maybe publish one seed idea, add 0-2 comments, and add 0-10 votes.
 - Skip or reduce automation when there has already been enough recent real activity.
 - Keep app records normal: cron-created ideas, votes, and comments should use the same storage path and shape as anonymous user activity.
 

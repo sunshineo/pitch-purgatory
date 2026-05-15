@@ -11,14 +11,20 @@ import {
   validateStartupIdea
 } from '../lib/judge.mjs';
 import { writeRelatedComment } from './comment.mjs';
-import { blessProbabilityForBucket, evaluateIdeaTraffic, randomTrafficBucket } from './evaluation.mjs';
+import {
+  blessProbabilityForBucket,
+  calculateEvaluationNeeds,
+  pickRankedEvaluationAssignments,
+  randomRankedIds,
+  rankIdeasForTraffic
+} from './evaluation.mjs';
 import { seedCommentAuthors, seedIdeas, seedVoterPoolSize } from './seed-data.mjs';
 import {
   countIdeasCreatedSince,
-  getBoardDistribution,
-  getIdeaEvaluation,
+  getEvaluationDistribution,
+  listIdeasMissingEvaluations,
   listExistingIdeaTexts,
-  listBalancedVoteIdeas,
+  listRandomVoteIdeas,
   listRandomIdeas,
   recordActivityRun,
   upsertIdeaEvaluation
@@ -42,15 +48,7 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function randomVoteType(bucket, targetBoard) {
-  if (bucket === 'controversial' && targetBoard === 'blessed') {
-    return Math.random() < 0.65 ? 'bless' : 'damn';
-  }
-
-  if (bucket === 'controversial' && targetBoard === 'damned') {
-    return Math.random() < 0.35 ? 'bless' : 'damn';
-  }
-
+function randomVoteType(bucket) {
   return Math.random() < blessProbabilityForBucket(bucket) ? 'bless' : 'damn';
 }
 
@@ -76,25 +74,6 @@ function randomSeedVisitorId() {
   return `seed-visitor-${Math.floor(Math.random() * seedVoterPoolSize)
     .toString()
     .padStart(3, '0')}`;
-}
-
-function chooseVoteTarget(distribution) {
-  const total = distribution.blessed + distribution.purgatory + distribution.damned;
-  if (total === 0) return 'purgatory';
-
-  const shares = {
-    blessed: distribution.blessed / total,
-    purgatory: distribution.purgatory / total,
-    damned: distribution.damned / total
-  };
-  const targetFloor = 0.28;
-
-  if (shares.damned < targetFloor) return 'damned';
-  if (shares.blessed < targetFloor) return 'blessed';
-  if (shares.purgatory < targetFloor) return 'purgatory';
-
-  const options = ['blessed', 'purgatory', 'damned'];
-  return randomItem(options);
 }
 
 function utcDayStart(date = new Date()) {
@@ -142,41 +121,75 @@ async function createSeededIdea(actions) {
     authorDisplayName: 'Anonymous founder'
   });
 
-  const evaluation = await ensureIdeaEvaluation(idea);
   actions.push({
     type: 'create_idea',
     id: idea.id,
     slug: idea.slug,
-    title: idea.title,
-    bucket: evaluation.bucket,
-    fallback: evaluation.fallback
+    title: idea.title
   });
   return idea;
 }
 
-async function ensureIdeaEvaluation(idea) {
-  const existing = await getIdeaEvaluation(idea.id);
-  if (existing) return existing;
+export async function balanceIdeaEvaluations(actions = []) {
+  const distribution = await getEvaluationDistribution();
+  const needs = calculateEvaluationNeeds(distribution);
+  const neededTotal = needs.blessedNeeded + needs.damnedNeeded;
 
-  try {
-    const evaluation = await evaluateIdeaTraffic(idea.ideaText);
-    return upsertIdeaEvaluation({
-      ideaId: idea.id,
-      slug: idea.slug,
-      bucket: evaluation.bucket,
-      reason: evaluation.reason,
-      fallback: false
-    });
-  } catch (error) {
-    const bucket = randomTrafficBucket();
-    return upsertIdeaEvaluation({
-      ideaId: idea.id,
-      slug: idea.slug,
-      bucket,
-      reason: `Fallback bucket: ${error.message || 'traffic evaluation failed'}`,
-      fallback: true
-    });
+  actions.push({
+    type: 'evaluation_balance',
+    distribution,
+    needs
+  });
+
+  if (neededTotal === 0) {
+    actions.push({ type: 'skip_evaluations', reason: 'already_balanced' });
+    return [];
   }
+
+  const ideas = await listIdeasMissingEvaluations({ limit: 1000 });
+  if (!ideas.length) {
+    actions.push({ type: 'skip_evaluations', reason: 'no_neutral_ideas' });
+    return [];
+  }
+
+  let rankedIds;
+  let fallback = false;
+  let fallbackReason = '';
+  try {
+    rankedIds = await rankIdeasForTraffic(ideas);
+  } catch (error) {
+    rankedIds = randomRankedIds(ideas);
+    fallback = true;
+    fallbackReason = error.message || 'traffic ranking failed';
+  }
+
+  const assignments = pickRankedEvaluationAssignments({ ideas, rankedIds, needs });
+  const saved = [];
+
+  for (const assignment of assignments) {
+    const evaluation = await upsertIdeaEvaluation({
+      ideaId: assignment.idea.id,
+      slug: assignment.idea.slug,
+      bucket: assignment.bucket,
+      reason: fallback
+        ? `Fallback random rank ${assignment.rank}/${assignment.rankedTotal}: ${fallbackReason}`
+        : `Batch rank ${assignment.rank}/${assignment.rankedTotal}`,
+      fallback
+    });
+
+    const action = {
+      type: 'assign_evaluation',
+      slug: assignment.idea.slug,
+      bucket: evaluation.bucket,
+      rank: assignment.rank,
+      rankedTotal: assignment.rankedTotal,
+      fallback
+    };
+    actions.push(action);
+    saved.push(action);
+  }
+
+  return saved;
 }
 
 async function voteOnRandomIdeas(actions, voteCount) {
@@ -185,15 +198,11 @@ async function voteOnRandomIdeas(actions, voteCount) {
     return;
   }
 
-  const distribution = await getBoardDistribution();
-  const targetBoard = chooseVoteTarget(distribution);
-  const ideas = await listBalancedVoteIdeas({ limit: voteCount, target: targetBoard });
-
-  actions.push({ type: 'vote_target', target: targetBoard, distribution });
+  const ideas = await listRandomVoteIdeas({ limit: voteCount });
+  actions.push({ type: 'vote_selection', requested: voteCount, selected: ideas.length });
 
   for (const idea of ideas) {
-    const evaluation = await ensureIdeaEvaluation(idea);
-    const voteType = randomVoteType(evaluation.bucket, targetBoard);
+    const voteType = randomVoteType(idea.bucket);
     const voter = randomSeedVisitorId();
     const updatedIdea = await voteOnIdea({
       idOrSlug: idea.slug,
@@ -204,10 +213,8 @@ async function voteOnRandomIdeas(actions, voteCount) {
     actions.push({
       type: 'vote',
       slug: idea.slug,
-      target: targetBoard,
-      boardBucket: idea.boardBucket,
-      bucket: evaluation.bucket,
-      fallback: evaluation.fallback,
+      bucket: idea.bucket || 'neutral',
+      fallback: idea.fallback,
       voteType,
       voter,
       bless: updatedIdea?.votes?.bless ?? 0,
@@ -283,6 +290,7 @@ export async function runSeedBoard({ forceIdea = false } = {}) {
       });
     }
 
+    await balanceIdeaEvaluations(actions);
     await voteOnRandomIdeas(actions, randomVoteCount());
     await commentOnRandomIdeas(actions, randomCommentCount());
 

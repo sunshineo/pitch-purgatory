@@ -2,14 +2,11 @@ const model = process.env.LLM_MODEL || 'gpt-4o-mini';
 const apiUrl = process.env.LLM_API_URL || 'https://api.openai.com/v1/responses';
 
 export const trafficBuckets = {
-  mostly_blessed: 0.88,
-  mildly_blessed: 0.72,
-  controversial: 0.5,
-  mildly_damned: 0.28,
-  mostly_damned: 0.12
+  blessed: 0.82,
+  damned: 0.18
 };
 
-const bucketNames = Object.keys(trafficBuckets);
+export const neutralBlessProbability = 0.5;
 
 function requireApiKey() {
   if (!process.env.OPENAI_API_KEY) {
@@ -27,7 +24,7 @@ function getResponseText(payload) {
 }
 
 function parseJson(content) {
-  const match = String(content || '').match(/\{[\s\S]*\}/);
+  const match = String(content || '').match(/\{[\s\S]*\}|\[[\s\S]*\]/);
   if (!match) return null;
 
   try {
@@ -37,15 +34,99 @@ function parseJson(content) {
   }
 }
 
-export function randomTrafficBucket() {
-  return bucketNames[Math.floor(Math.random() * bucketNames.length)];
+function parseRankedIds(content) {
+  const parsed = parseJson(content);
+  const ids = Array.isArray(parsed) ? parsed : parsed?.rankedIds || parsed?.ranked_ids;
+
+  if (!Array.isArray(ids)) return null;
+  return ids.map((id) => String(id));
+}
+
+function normalizeRankedIds({ ideas, rankedIds }) {
+  const identifiers = new Map();
+  for (const idea of ideas) {
+    identifiers.set(idea.id, idea.id);
+    if (idea.slug) identifiers.set(idea.slug, idea.id);
+  }
+
+  const seen = new Set();
+  const normalized = [];
+
+  for (const identifier of rankedIds || []) {
+    const id = identifiers.get(identifier);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    normalized.push(id);
+  }
+
+  for (const idea of ideas) {
+    if (seen.has(idea.id)) continue;
+    normalized.push(idea.id);
+  }
+
+  return normalized;
 }
 
 export function blessProbabilityForBucket(bucket) {
-  return trafficBuckets[bucket] ?? trafficBuckets.controversial;
+  return trafficBuckets[bucket] ?? neutralBlessProbability;
 }
 
-export async function evaluateIdeaTraffic(idea) {
+export function calculateEvaluationNeeds({ blessed = 0, damned = 0, neutral = 0 } = {}) {
+  const total = blessed + damned + neutral;
+  const targetBlessed = Math.floor(total / 3);
+  const targetDamned = Math.floor(total / 3);
+  const targetNeutral = total - targetBlessed - targetDamned;
+  const blessedNeeded = Math.max(0, Math.min(neutral, targetBlessed - blessed));
+  const neutralAfterBlessed = neutral - blessedNeeded;
+  const damnedNeeded = Math.max(0, Math.min(neutralAfterBlessed, targetDamned - damned));
+
+  return {
+    total,
+    targetBlessed,
+    targetDamned,
+    targetNeutral,
+    blessedNeeded,
+    damnedNeeded
+  };
+}
+
+export function pickRankedEvaluationAssignments({ ideas, rankedIds, needs }) {
+  const ranked = normalizeRankedIds({ ideas, rankedIds });
+  const ideasById = new Map(ideas.map((idea) => [idea.id, idea]));
+  const blessedIds = ranked.slice(0, needs.blessedNeeded);
+  const damnedIds = needs.damnedNeeded > 0 ? ranked.slice(-needs.damnedNeeded).reverse() : [];
+  const assignments = [];
+
+  for (const id of blessedIds) {
+    assignments.push({
+      idea: ideasById.get(id),
+      bucket: 'blessed',
+      rank: ranked.indexOf(id) + 1,
+      rankedTotal: ranked.length
+    });
+  }
+
+  for (const id of damnedIds) {
+    assignments.push({
+      idea: ideasById.get(id),
+      bucket: 'damned',
+      rank: ranked.indexOf(id) + 1,
+      rankedTotal: ranked.length
+    });
+  }
+
+  return assignments.filter((assignment) => assignment.idea);
+}
+
+export function randomRankedIds(ideas) {
+  return [...ideas]
+    .map((idea) => ({ idea, sort: Math.random() }))
+    .sort((a, b) => a.sort - b.sort)
+    .map(({ idea }) => idea.id);
+}
+
+export async function rankIdeasForTraffic(ideas) {
+  if (!ideas.length) return [];
   requireApiKey();
 
   const response = await fetch(apiUrl, {
@@ -56,29 +137,32 @@ export async function evaluateIdeaTraffic(idea) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.05,
-      max_output_tokens: 120,
+      temperature: 0.1,
+      max_output_tokens: 2500,
       instructions:
-        'Evaluate this startup or project idea neutrally for likely anonymous bulletin-board voting. Be calibrated and use the full scale: most rough, gimmicky, niche, trust-heavy, regulated, creepy, low-frequency, or operationally hard ideas should be controversial or damned, not blessed. Return only compact JSON with keys "bucket" and "reason". bucket must be exactly one of: mostly_blessed, mildly_blessed, controversial, mildly_damned, mostly_damned. mostly_blessed is rare: clear buyer, frequent pain, feasible delivery, low trust/compliance friction, broad appeal. mildly_blessed means plausible with real demand but some manageable issues. controversial is the default for clever-but-divisive ideas. mildly_damned means weak buyer, low frequency, hard operations, trust/privacy/regulatory concerns, or joke-like demand. mostly_damned means likely rejected, mocked, impossible, unsafe, exploitative, or too tiny to matter. Keep reason under 120 characters.',
-      input: `Idea: ${idea}`
+        'Rank these anonymous bulletin-board ideas from most likely to receive genuine upvotes to most likely to receive genuine downvotes. Judge practical appeal, clarity, feasibility, audience size, trust friction, cost, regulation, and whether people would mock it. Return only compact JSON: {"rankedIds":["id-best","id-next","id-worst"]}. Include every id exactly once. No markdown.',
+      input: JSON.stringify(
+        ideas.map((idea) => ({
+          id: idea.id,
+          slug: idea.slug,
+          title: idea.title,
+          idea: idea.ideaText
+        }))
+      )
     })
   });
 
   if (!response.ok) {
     const details = await response.text();
-    throw new Error(`Traffic evaluation call failed: ${response.status} ${details}`);
+    throw new Error(`Traffic ranking call failed: ${response.status} ${details}`);
   }
 
   const payload = await response.json();
-  const parsed = parseJson(getResponseText(payload));
-  const bucket = parsed?.bucket;
+  const rankedIds = parseRankedIds(getResponseText(payload));
 
-  if (!bucketNames.includes(bucket)) {
-    throw new Error('Traffic evaluation returned an unknown bucket.');
+  if (!rankedIds) {
+    throw new Error('Traffic ranking returned no rankedIds array.');
   }
 
-  return {
-    bucket,
-    reason: String(parsed.reason || '').replace(/\s+/g, ' ').slice(0, 160).trim()
-  };
+  return normalizeRankedIds({ ideas, rankedIds });
 }
