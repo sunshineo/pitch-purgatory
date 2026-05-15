@@ -50,6 +50,7 @@ const placeholders = {
 
 const purgatoryMinimumVotes = 3;
 const purgatoryRopeFloor = 0.2;
+const boardPageSize = 50;
 
 function setLoading(isLoading) {
   document.body.classList.toggle('is-streaming', isLoading);
@@ -352,29 +353,64 @@ function syncBoardIdeaVotes(idea) {
   });
 }
 
-function renderBoardColumn(target, ideas, emptyText) {
-  target.textContent = '';
+function renderLoadMoreButton(target, sort, nextOffset) {
+  const button = document.createElement('button');
+  button.className = 'feed-load-more';
+  button.type = 'button';
+  button.textContent = 'Summon more';
+  button.addEventListener('click', () => {
+    loadBoardColumn(target, sort, '', { append: true, offset: nextOffset });
+  });
+  target.append(button);
+}
+
+function renderBoardColumn(target, ideas, emptyText, { append = false, sort, offset = 0 } = {}) {
+  target.querySelector('.feed-load-more')?.remove();
+
+  if (!append) {
+    target.textContent = '';
+  }
+
   if (!ideas.length) {
-    target.innerHTML = `<p class="feed-empty">${emptyText}</p>`;
+    if (!append) {
+      target.innerHTML = `<p class="feed-empty">${emptyText}</p>`;
+    }
     return;
   }
 
   target.append(...ideas.map(ideaCard));
+
+  if (ideas.length === boardPageSize) {
+    renderLoadMoreButton(target, sort, offset + ideas.length);
+  }
 }
 
-async function loadBoardColumn(target, sort, emptyText) {
-  target.innerHTML = '<p class="feed-empty">Summoning launches...</p>';
+async function loadBoardColumn(target, sort, emptyText, { append = false, offset = 0 } = {}) {
+  const existingLoadMore = target.querySelector('.feed-load-more');
+  if (existingLoadMore) {
+    existingLoadMore.disabled = true;
+    existingLoadMore.textContent = 'Summoning...';
+  } else if (!append) {
+    target.innerHTML = '<p class="feed-empty">Summoning launches...</p>';
+  }
 
   try {
-    const response = await fetch(`/api/ideas?limit=12&sort=${encodeURIComponent(sort)}`);
+    const response = await fetch(
+      `/api/ideas?limit=${boardPageSize}&offset=${offset}&sort=${encodeURIComponent(sort)}`
+    );
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       throw new Error(payload?.error || `Feed failed with HTTP ${response.status}.`);
     }
 
-    renderBoardColumn(target, payload.ideas || [], emptyText);
+    renderBoardColumn(target, payload.ideas || [], emptyText, { append, sort, offset });
   } catch (error) {
-    target.innerHTML = `<p class="feed-empty">${error.message || 'The feed is sulking.'}</p>`;
+    if (existingLoadMore) {
+      existingLoadMore.disabled = false;
+      existingLoadMore.textContent = 'Try again';
+    } else {
+      target.innerHTML = `<p class="feed-empty">${error.message || 'The feed is sulking.'}</p>`;
+    }
   }
 }
 

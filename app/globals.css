@@ -605,6 +605,26 @@ h1 {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.feed-load-more {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(255, 215, 93, 0.35);
+  border-radius: 8px;
+  background: rgba(255, 215, 93, 0.12);
+  color: #ffe9a6;
+  cursor: pointer;
+}
+
+.feed-load-more:hover:not(:disabled) {
+  border-color: rgba(255, 215, 93, 0.7);
+  background: rgba(255, 215, 93, 0.2);
+}
+
+.feed-load-more:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .composer-box {
   width: 100%;
   min-height: 106px;
