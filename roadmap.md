@@ -108,7 +108,7 @@ Board activity model:
 - Prefer curated ideas and templated comments first so automation does not create unnecessary LLM spend.
 - Only use LLM generation for occasional high-quality seed posts or comments, behind strict per-day limits.
 - Current implementation has a 200-item seed bank and a local Mac runner that can run every 30 minutes. It averages 2-3 new seeded ideas per day, casts 0-10 random votes, and posts 0-2 short LLM-written comments per run.
-- Cron voting uses a neutral LLM bucket stored in the cron-only `cron_idea_evaluations` table so ideas can drift toward Blessed, Damned, or Purgatory instead of all converging to 50/50.
+- Cron voting uses a stricter neutral LLM bucket stored in the cron-only `cron_idea_evaluations` table plus board-level targeting, so ideas can drift toward Blessed, Damned, or Purgatory instead of all converging to 50/50.
 
 Automation work:
 

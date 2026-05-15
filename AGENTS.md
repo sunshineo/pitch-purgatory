@@ -51,7 +51,7 @@ LLM calls cost real money. The API key is expected to have restricted permission
 - Seeded board activity is isolated under `cron/` and runnable from this Mac with `npm run seed:once`; use `launchd` `StartInterval` for repeated runs.
 - `cron/seed-data.mjs` contains 200 seed ideas plus comment authors. The cron may publish one seed idea after running the same validation, angel/devil judgment, and title summary pipeline as a normal user launch.
 - Each cron run casts 0-10 random votes and posts 0-2 LLM-written short comments on random existing ideas.
-- Cron vote shaping uses `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns one of five buckets; if evaluation fails, cron stores a random fallback bucket. Do not add these bucket fields to the public app schema.
+- Cron vote shaping uses `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns one of five buckets; if evaluation fails, cron stores a random fallback bucket. Cron also targets underrepresented board columns when choosing vote candidates. Do not add these bucket fields to the public app schema.
 - `app/api/judge/route.js` intentionally shares the same judge logic from `lib/judge.mjs`.
 - `validateStartupIdea()` performs a small classifier call before streaming the angel/devil responses.
 - `streamVerdicts()` runs angel and devil LLM streams concurrently and emits chunks tagged with `side`.

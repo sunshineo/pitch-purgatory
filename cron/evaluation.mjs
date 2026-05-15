@@ -2,11 +2,11 @@ const model = process.env.LLM_MODEL || 'gpt-4o-mini';
 const apiUrl = process.env.LLM_API_URL || 'https://api.openai.com/v1/responses';
 
 export const trafficBuckets = {
-  mostly_blessed: 0.72,
-  mildly_blessed: 0.62,
+  mostly_blessed: 0.88,
+  mildly_blessed: 0.72,
   controversial: 0.5,
-  mildly_damned: 0.38,
-  mostly_damned: 0.28
+  mildly_damned: 0.28,
+  mostly_damned: 0.12
 };
 
 const bucketNames = Object.keys(trafficBuckets);
@@ -56,10 +56,10 @@ export async function evaluateIdeaTraffic(idea) {
     },
     body: JSON.stringify({
       model,
-      temperature: 0.15,
+      temperature: 0.05,
       max_output_tokens: 120,
       instructions:
-        'Evaluate this startup or project idea neutrally for likely anonymous bulletin-board voting. Return only compact JSON with keys "bucket" and "reason". bucket must be exactly one of: mostly_blessed, mildly_blessed, controversial, mildly_damned, mostly_damned. mostly_blessed means broad appeal and practical credibility. mildly_blessed means plausible but not a slam dunk. controversial means likely split reactions. mildly_damned means notable weaknesses. mostly_damned means likely rejected or mocked. Keep reason under 120 characters.',
+        'Evaluate this startup or project idea neutrally for likely anonymous bulletin-board voting. Be calibrated and use the full scale: most rough, gimmicky, niche, trust-heavy, regulated, creepy, low-frequency, or operationally hard ideas should be controversial or damned, not blessed. Return only compact JSON with keys "bucket" and "reason". bucket must be exactly one of: mostly_blessed, mildly_blessed, controversial, mildly_damned, mostly_damned. mostly_blessed is rare: clear buyer, frequent pain, feasible delivery, low trust/compliance friction, broad appeal. mildly_blessed means plausible with real demand but some manageable issues. controversial is the default for clever-but-divisive ideas. mildly_damned means weak buyer, low frequency, hard operations, trust/privacy/regulatory concerns, or joke-like demand. mostly_damned means likely rejected, mocked, impossible, unsafe, exploitative, or too tiny to matter. Keep reason under 120 characters.',
       input: `Idea: ${idea}`
     })
   });

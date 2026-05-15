@@ -87,7 +87,7 @@ Published ideas and community interactions use `lib/store.mjs` through `lib/idea
 
 Seeded board activity lives in `cron/`. Run one pass locally with `npm run seed:once`. It randomly publishes from the 200-item seed bank in `cron/seed-data.mjs` at about 2-3 ideas per day when scheduled every 30 minutes, casts 0-10 random votes, and asks the LLM for 0-2 short idea-specific comments. Those writes go through the same app storage functions as normal anonymous activity.
 
-Cron keeps its vote-shaping metadata in `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns each idea to `mostly_blessed`, `mildly_blessed`, `controversial`, `mildly_damned`, or `mostly_damned`; if the evaluator fails, cron stores a random fallback bucket. The public app schema does not depend on these buckets.
+Cron keeps its vote-shaping metadata in `cron_idea_evaluations`, a cron-owned table keyed by idea ID. The neutral evaluator assigns each idea to `mostly_blessed`, `mildly_blessed`, `controversial`, `mildly_damned`, or `mostly_damned`; if the evaluator fails, cron stores a random fallback bucket. The public app schema does not depend on these buckets. Voting also checks the current board distribution and preferentially targets underrepresented Blessed, Purgatory, or Damned columns.
 
 For a Mac that should keep seeding without an open terminal, use `launchd` to run one pass every 30 minutes:
 

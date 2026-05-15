@@ -6,6 +6,9 @@ const { Pool } = pg;
 let pool;
 let schemaReady;
 
+const purgatoryMinimumVotes = 3;
+const purgatoryRopeFloor = 0.2;
+
 function getPool() {
   if (pool) return pool;
 
@@ -102,6 +105,124 @@ export async function listRandomIdeas({ limit = 5 } = {}) {
     slug: row.slug,
     title: row.title,
     ideaText: row.idea_text,
+    votes: {
+      bless: Number(row.bless_count || 0),
+      damn: Number(row.damn_count || 0)
+    }
+  }));
+}
+
+function boardSql() {
+  const totalVotesSql = 'COUNT(v.*)';
+  return `
+    WITH idea_votes AS (
+      SELECT
+        i.id,
+        i.slug,
+        i.title,
+        i.idea_text,
+        e.bucket,
+        e.fallback,
+        COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'bless'), 0)::int AS bless_count,
+        COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'damn'), 0)::int AS damn_count,
+        ${totalVotesSql}::int AS total_votes,
+        CASE
+          WHEN ${totalVotesSql} = 0 THEN 0
+          ELSE (
+            COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'bless'), 0)::float -
+            COALESCE(COUNT(v.*) FILTER (WHERE v.vote_type = 'damn'), 0)::float
+          ) / ${totalVotesSql}
+        END AS vote_margin,
+        CASE
+          WHEN ${totalVotesSql} = 0 THEN ${purgatoryMinimumVotes}
+          WHEN ${totalVotesSql} < ${purgatoryMinimumVotes} THEN 2
+          ELSE GREATEST(${purgatoryRopeFloor}, 1 / SQRT(${totalVotesSql}::float))
+        END AS rope_threshold
+      FROM ideas i
+      LEFT JOIN votes v ON v.idea_id = i.id
+      LEFT JOIN cron_idea_evaluations e ON e.idea_id = i.id
+      WHERE i.status = 'published'
+      GROUP BY i.id, e.bucket, e.fallback
+    )
+    SELECT *,
+      CASE
+        WHEN vote_margin >= rope_threshold THEN 'blessed'
+        WHEN vote_margin <= -rope_threshold THEN 'damned'
+        ELSE 'purgatory'
+      END AS board_bucket
+    FROM idea_votes
+  `;
+}
+
+export async function getBoardDistribution() {
+  await ensureCronSchema();
+
+  const result = await getPool().query(`
+    SELECT board_bucket, COUNT(*)::int AS count
+    FROM (${boardSql()}) board
+    GROUP BY board_bucket
+  `);
+
+  const counts = { blessed: 0, purgatory: 0, damned: 0 };
+  for (const row of result.rows) {
+    counts[row.board_bucket] = Number(row.count || 0);
+  }
+
+  return counts;
+}
+
+export async function listBalancedVoteIdeas({ limit = 5, target = 'purgatory' } = {}) {
+  await ensureCronSchema();
+
+  const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 50);
+  const result = await getPool().query(
+    `
+      SELECT *
+      FROM (${boardSql()}) board
+      ORDER BY
+        CASE $2
+          WHEN 'damned' THEN
+            CASE COALESCE(bucket, 'missing')
+              WHEN 'mostly_damned' THEN 0
+              WHEN 'mildly_damned' THEN 1
+              WHEN 'controversial' THEN 2
+              WHEN 'missing' THEN 3
+              WHEN 'mildly_blessed' THEN 4
+              ELSE 5
+            END
+          WHEN 'blessed' THEN
+            CASE COALESCE(bucket, 'missing')
+              WHEN 'mostly_blessed' THEN 0
+              WHEN 'mildly_blessed' THEN 1
+              WHEN 'controversial' THEN 2
+              WHEN 'missing' THEN 3
+              WHEN 'mildly_damned' THEN 4
+              ELSE 5
+            END
+          ELSE
+            CASE COALESCE(bucket, 'missing')
+              WHEN 'controversial' THEN 0
+              WHEN 'missing' THEN 1
+              WHEN 'mildly_damned' THEN 2
+              WHEN 'mildly_blessed' THEN 3
+              ELSE 4
+            END
+        END,
+        CASE WHEN board_bucket = $2 THEN 1 ELSE 0 END,
+        random()
+      LIMIT $1
+    `,
+    [safeLimit, target]
+  );
+
+  return result.rows.map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    title: row.title,
+    ideaText: row.idea_text,
+    bucket: row.bucket || null,
+    fallback: row.fallback,
+    boardBucket: row.board_bucket,
     votes: {
       bless: Number(row.bless_count || 0),
       damn: Number(row.damn_count || 0)

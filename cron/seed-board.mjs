@@ -15,8 +15,10 @@ import { blessProbabilityForBucket, evaluateIdeaTraffic, randomTrafficBucket } f
 import { seedCommentAuthors, seedIdeas, seedVoterPoolSize } from './seed-data.mjs';
 import {
   countIdeasCreatedSince,
+  getBoardDistribution,
   getIdeaEvaluation,
   listExistingIdeaTexts,
+  listBalancedVoteIdeas,
   listRandomIdeas,
   recordActivityRun,
   upsertIdeaEvaluation
@@ -40,7 +42,15 @@ function randomItem(items) {
   return items[Math.floor(Math.random() * items.length)];
 }
 
-function randomVoteType(bucket) {
+function randomVoteType(bucket, targetBoard) {
+  if (bucket === 'controversial' && targetBoard === 'blessed') {
+    return Math.random() < 0.65 ? 'bless' : 'damn';
+  }
+
+  if (bucket === 'controversial' && targetBoard === 'damned') {
+    return Math.random() < 0.35 ? 'bless' : 'damn';
+  }
+
   return Math.random() < blessProbabilityForBucket(bucket) ? 'bless' : 'damn';
 }
 
@@ -66,6 +76,25 @@ function randomSeedVisitorId() {
   return `seed-visitor-${Math.floor(Math.random() * seedVoterPoolSize)
     .toString()
     .padStart(3, '0')}`;
+}
+
+function chooseVoteTarget(distribution) {
+  const total = distribution.blessed + distribution.purgatory + distribution.damned;
+  if (total === 0) return 'purgatory';
+
+  const shares = {
+    blessed: distribution.blessed / total,
+    purgatory: distribution.purgatory / total,
+    damned: distribution.damned / total
+  };
+  const targetFloor = 0.28;
+
+  if (shares.damned < targetFloor) return 'damned';
+  if (shares.blessed < targetFloor) return 'blessed';
+  if (shares.purgatory < targetFloor) return 'purgatory';
+
+  const options = ['blessed', 'purgatory', 'damned'];
+  return randomItem(options);
 }
 
 function utcDayStart(date = new Date()) {
@@ -156,11 +185,15 @@ async function voteOnRandomIdeas(actions, voteCount) {
     return;
   }
 
-  const ideas = await listRandomIdeas({ limit: voteCount });
+  const distribution = await getBoardDistribution();
+  const targetBoard = chooseVoteTarget(distribution);
+  const ideas = await listBalancedVoteIdeas({ limit: voteCount, target: targetBoard });
+
+  actions.push({ type: 'vote_target', target: targetBoard, distribution });
 
   for (const idea of ideas) {
     const evaluation = await ensureIdeaEvaluation(idea);
-    const voteType = randomVoteType(evaluation.bucket);
+    const voteType = randomVoteType(evaluation.bucket, targetBoard);
     const voter = randomSeedVisitorId();
     const updatedIdea = await voteOnIdea({
       idOrSlug: idea.slug,
@@ -171,6 +204,8 @@ async function voteOnRandomIdeas(actions, voteCount) {
     actions.push({
       type: 'vote',
       slug: idea.slug,
+      target: targetBoard,
+      boardBucket: idea.boardBucket,
       bucket: evaluation.bucket,
       fallback: evaluation.fallback,
       voteType,
